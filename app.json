@@ -1,0 +1,31 @@
+{
+  "expo": {
+    "name": "Aileesa",
+    "slug": "aileesa",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F5F6FA"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.aileesa.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#F5F6FA"
+      },
+      "package": "com.aileesa.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    }
+  }
+}
