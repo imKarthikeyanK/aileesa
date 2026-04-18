@@ -383,7 +383,7 @@ export default function StoreDetailScreen({ route, navigation }) {
       </TouchableOpacity>
 
       {/* ━━━ Scrollable body ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-      <ScrollView
+      <Animated.ScrollView
         ref={scrollRef}
         style={styles.scroll}
         contentContainerStyle={{ paddingBottom: insets.bottom + 48 }}
@@ -529,7 +529,7 @@ export default function StoreDetailScreen({ route, navigation }) {
             {sIdx < sections.length - 1 && <View style={styles.sectionGap} />}
           </View>
         ))}
-      </ScrollView>
+      </Animated.ScrollView>
     </View>
   );
 }
