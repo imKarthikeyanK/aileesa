@@ -281,14 +281,14 @@ export default function StoreListingScreen({ navigation }) {
   const scrollY           = useRef(new Animated.Value(0)).current;
   const [category, setCategory] = useState('all');
 
-  const TOTAL_HEADER_H = insets.top + TITLE_BAR_H + EXPAND_H + SEARCH_H;
+  const TOTAL_HEADER_H = insets.top + TITLE_BAR_H + EXPAND_H + SEARCH_H - 10;
 
   // ── Animated interpolations (all useNativeDriver: true) ──────────────────────
 
   // The expand zone + search bar container slides up by EXPAND_H
   const containerTranslateY = scrollY.interpolate({
     inputRange: [0, EXPAND_H],
-    outputRange: [0, -EXPAND_H],
+    outputRange: [0, -EXPAND_H+32],
     extrapolate: 'clamp',
   });
 
@@ -530,8 +530,9 @@ const styles = StyleSheet.create({
 
   // Expand zone
   expandZone: {
-    height: EXPAND_H-38,
+    // height: EXPAND_H-48,
     paddingHorizontal: 20,
+    marginTop: 14,
     justifyContent: 'center',
     gap: 4,
   },
@@ -555,11 +556,12 @@ const styles = StyleSheet.create({
     color: TEXT_MUTED,
     fontWeight: '500',
     letterSpacing: 0.2,
+    marginBottom: 6,
   },
 
   // Search bar (always visible)
   searchOuter: {
-    height: SEARCH_H+16,
+    height: SEARCH_H+20,
     backgroundColor: WHITE,
     paddingHorizontal: 16,
     paddingVertical: 10,
