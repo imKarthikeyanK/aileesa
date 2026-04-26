@@ -10,7 +10,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#F5F6FA"
+      "backgroundColor": "#6200EE"
     },
     "ios": {
       "supportsTablet": false,
@@ -19,9 +19,14 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#F5F6FA"
+        "backgroundColor": "#6200EE"
       },
-      "package": "com.aileesa.app"
+      "package": "com.aileesa.app",
+      "splash": {
+        "image": "./assets/splash-icon.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#6200EE"
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -29,6 +34,11 @@
     },
     "plugins": [
       "expo-font"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "c4ee2510-0516-4af7-a589-31ad3a4adad7"
+      }
+    }
   }
 }
