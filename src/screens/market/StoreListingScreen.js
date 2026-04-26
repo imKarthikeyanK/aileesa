@@ -404,11 +404,11 @@ export default function StoreListingScreen({ navigation }) {
             </Text>
             <Ionicons name="chevron-down" size={13} color={TEXT_PRI} />
           </TouchableOpacity>
-          <Text style={styles.greeting}>What are you looking for today?</Text>
         </Animated.View>
 
         {/* Search bar — always visible, sticks below title bar when collapsed */}
         <View style={styles.searchOuter}>
+          <Text style={styles.greeting}>What are you looking for today?</Text>
           <View style={styles.searchBar}>
             <Ionicons name="search-outline" size={17} color={ACCENT_DIM} />
             <Text style={styles.searchPlaceholder}>
@@ -530,7 +530,7 @@ const styles = StyleSheet.create({
 
   // Expand zone
   expandZone: {
-    height: EXPAND_H,
+    height: EXPAND_H-38,
     paddingHorizontal: 20,
     justifyContent: 'center',
     gap: 4,
@@ -559,7 +559,7 @@ const styles = StyleSheet.create({
 
   // Search bar (always visible)
   searchOuter: {
-    height: SEARCH_H,
+    height: SEARCH_H+16,
     backgroundColor: WHITE,
     paddingHorizontal: 16,
     paddingVertical: 10,
