@@ -9,3 +9,5 @@ npm-debug.*
 *.key
 *.mobileprovision
 *.orig.*
+
+build*
