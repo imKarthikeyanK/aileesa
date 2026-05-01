@@ -14,13 +14,16 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ThemeProvider } from './src/theme/ThemeContext';
 import Navigation from './src/navigation/Navigation';
+import { CartProvider } from './src/context/CartContext';
 
 export default function App() {
   return (
     <GestureHandlerRootView style={styles.root}>
       <ThemeProvider>
-        <StatusBar style="dark" translucent />
-        <Navigation />
+        <CartProvider>
+          <StatusBar style="dark" translucent />
+          <Navigation />
+        </CartProvider>
       </ThemeProvider>
     </GestureHandlerRootView>
   );

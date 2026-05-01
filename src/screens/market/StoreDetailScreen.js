@@ -12,20 +12,31 @@
  *        product card: icon swatch | name · unit · price (MRP strikethrough) | View btn
  */
 
-import React, { useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import {
-  View,
-  Text,
-  ScrollView,
-  FlatList,
-  TouchableOpacity,
-  StyleSheet,
-  Dimensions,
-  StatusBar,
+  ActivityIndicator,
   Animated,
+  Dimensions,
+  FlatList,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+
+import { getStoreDetail } from '../../api/storeApi';
+import { getInventories }  from '../../api/inventoryApi';
+import { useCart }          from '../../context/CartContext';
+import CartFloatingCard     from '../../components/CartFloatingCard';
+import Toast                from '../../components/Toast';
 
 const { width: SW } = Dimensions.get('window');
 
@@ -47,194 +58,6 @@ const SUCCESS      = '#10B981';
 const HERO_H      = 280;
 const CARD_OVERLAP = 32;
 
-// ─── Store Addresses ───────────────────────────────────────────────────────────
-
-const STORE_ADDRESS = {
-  '1': '12, MG Road, Koramangala, Bangalore',
-  '2': '7, Residency Road, Shivajinagar, Bangalore',
-  '3': '3, Brigade Road, Commercial Street, Bangalore',
-  '4': '41, Indiranagar 100ft Road, Bangalore',
-  '5': '8, UB City Mall, Vittal Mallya Rd, Bangalore',
-  '6': '22, HSR Layout 5th Sector, Bangalore',
-  '7': '14, Jayanagar 4th Block, Bangalore',
-  '8': '6, Bannerghatta Road, JP Nagar, Bangalore',
-};
-
-// ─── Product Catalogue ────────────────────────────────────────────────────────
-
-const CATALOGUE = {
-  Grocery: [
-    {
-      id: 'gr-pop', title: 'Popular',
-      items: [
-        { id: 'g1', name: 'Organic Bananas', unit: '6 pcs', price: 49, mrp: 60, icon: 'nutrition', iconBg: '#E8F5E9', iconColor: '#2E7D32', badge: 'Top Pick' },
-        { id: 'g2', name: 'Farm Fresh Eggs', unit: 'Dozen', price: 89, mrp: 99, icon: 'egg-outline', iconBg: '#FFF8E1', iconColor: '#F57F17', badge: null },
-        { id: 'g3', name: 'Amul Butter', unit: '500 g', price: 270, mrp: 280, icon: 'cube-outline', iconBg: '#E3F2FD', iconColor: '#1565C0', badge: null },
-      ],
-    },
-    {
-      id: 'gr-new', title: 'New Arrivals',
-      items: [
-        { id: 'g4', name: 'Hass Avocado', unit: '2 pcs', price: 120, mrp: 140, icon: 'leaf', iconBg: '#E8F5E9', iconColor: '#2E7D32', badge: 'New' },
-        { id: 'g5', name: 'Quinoa Seeds', unit: '500 g', price: 210, mrp: 240, icon: 'flower-outline', iconBg: '#F3E5F5', iconColor: '#7B1FA2', badge: 'New' },
-      ],
-    },
-    {
-      id: 'gr-fruits', title: 'Fruits & Veggies',
-      items: [
-        { id: 'g6', name: 'Red Apples', unit: '1 kg', price: 159, mrp: 180, icon: 'nutrition', iconBg: '#FCE4EC', iconColor: '#C62828', badge: null },
-        { id: 'g7', name: 'Baby Spinach', unit: '250 g', price: 45, mrp: 55, icon: 'leaf-outline', iconBg: '#E8F5E9', iconColor: '#388E3C', badge: null },
-        { id: 'g8', name: 'Cherry Tomatoes', unit: '300 g', price: 65, mrp: 70, icon: 'ellipse-outline', iconBg: '#FCE4EC', iconColor: '#B71C1C', badge: null },
-      ],
-    },
-  ],
-  Bakery: [
-    {
-      id: 'bk-pop', title: 'Popular',
-      items: [
-        { id: 'b1', name: 'Sourdough Loaf', unit: '400 g', price: 120, mrp: 140, icon: 'cafe', iconBg: '#FFF8E1', iconColor: '#E65100', badge: 'Top Pick' },
-        { id: 'b2', name: 'Butter Croissant', unit: '2 pcs', price: 80, mrp: 90, icon: 'cafe-outline', iconBg: '#FFF8E1', iconColor: '#BF360C', badge: null },
-        { id: 'b3', name: 'Cinnamon Roll', unit: '1 pc', price: 65, mrp: 75, icon: 'radio-button-off', iconBg: '#FBE9E7', iconColor: '#BF360C', badge: null },
-      ],
-    },
-    {
-      id: 'bk-fresh', title: 'Fresh Today',
-      items: [
-        { id: 'b4', name: 'Blueberry Muffin', unit: '2 pcs', price: 110, mrp: 120, icon: 'ellipse', iconBg: '#EDE7F6', iconColor: '#4527A0', badge: 'Fresh' },
-        { id: 'b5', name: 'Banana Bread', unit: '300 g', price: 95, mrp: 110, icon: 'nutrition-outline', iconBg: '#FFF8E1', iconColor: '#F9A825', badge: 'New' },
-      ],
-    },
-    {
-      id: 'bk-cakes', title: 'Cakes & Pastries',
-      items: [
-        { id: 'b6', name: 'Chocolate Truffle', unit: '1 slice', price: 130, mrp: 150, icon: 'heart', iconBg: '#FCE4EC', iconColor: '#C62828', badge: null },
-        { id: 'b7', name: 'Tiramisu Cup', unit: '1 pc', price: 160, mrp: 180, icon: 'snow-outline', iconBg: '#E8EAF6', iconColor: '#283593', badge: null },
-      ],
-    },
-  ],
-  Pharmacy: [
-    {
-      id: 'ph-pop', title: 'Popular',
-      items: [
-        { id: 'ph1', name: 'Vitamin C 1000mg', unit: '30 tabs', price: 189, mrp: 220, icon: 'medical', iconBg: '#E3F2FD', iconColor: '#1565C0', badge: 'Top Pick' },
-        { id: 'ph2', name: 'Hand Sanitizer', unit: '200 ml', price: 79, mrp: 99, icon: 'water', iconBg: '#E0F7FA', iconColor: '#00838F', badge: null },
-        { id: 'ph3', name: 'Paracetamol 500', unit: 'Strip of 10', price: 22, mrp: 25, icon: 'medkit', iconBg: '#E3F2FD', iconColor: '#1565C0', badge: null },
-      ],
-    },
-    {
-      id: 'ph-new', title: 'New Arrivals',
-      items: [
-        { id: 'ph4', name: 'Omega-3 Fish Oil', unit: '60 caps', price: 349, mrp: 399, icon: 'fish', iconBg: '#E0F7FA', iconColor: '#006064', badge: 'New' },
-        { id: 'ph5', name: 'Collagen Gummies', unit: '30 pcs', price: 499, mrp: 549, icon: 'star', iconBg: '#FFF8E1', iconColor: '#F9A825', badge: 'New' },
-      ],
-    },
-    {
-      id: 'ph-skin', title: 'Skincare',
-      items: [
-        { id: 'ph6', name: 'Sunscreen SPF 50', unit: '100 ml', price: 280, mrp: 320, icon: 'sunny', iconBg: '#FFF9C4', iconColor: '#F9A825', badge: null },
-        { id: 'ph7', name: 'Daily Moisturizer', unit: '75 ml', price: 199, mrp: 230, icon: 'water-outline', iconBg: '#E3F2FD', iconColor: '#1565C0', badge: null },
-      ],
-    },
-  ],
-  Electronics: [
-    {
-      id: 'el-pop', title: 'Popular',
-      items: [
-        { id: 'e1', name: 'USB-C Cable 2 m', unit: '1 pc', price: 299, mrp: 399, icon: 'hardware-chip', iconBg: '#F3E5F5', iconColor: '#6A1B9A', badge: 'Top Pick' },
-        { id: 'e2', name: 'Wireless Earbuds', unit: '1 pair', price: 1299, mrp: 1599, icon: 'headset', iconBg: '#EDE7F6', iconColor: '#4527A0', badge: null },
-        { id: 'e3', name: '20 W Fast Charger', unit: '1 pc', price: 649, mrp: 799, icon: 'flash', iconBg: '#FFF8E1', iconColor: '#F9A825', badge: null },
-      ],
-    },
-    {
-      id: 'el-new', title: 'New Arrivals',
-      items: [
-        { id: 'e4', name: 'Smart Watch Band', unit: '1 pc', price: 499, mrp: 599, icon: 'watch', iconBg: '#F3E5F5', iconColor: '#6A1B9A', badge: 'New' },
-        { id: 'e5', name: 'Screen Protector', unit: '2 pcs', price: 249, mrp: 299, icon: 'phone-portrait', iconBg: '#E8EAF6', iconColor: '#283593', badge: 'New' },
-      ],
-    },
-    {
-      id: 'el-acc', title: 'Accessories',
-      items: [
-        { id: 'e6', name: 'Laptop Stand', unit: '1 pc', price: 799, mrp: 999, icon: 'desktop', iconBg: '#EDE7F6', iconColor: '#4527A0', badge: null },
-        { id: 'e7', name: 'XL Mouse Pad', unit: '1 pc', price: 349, mrp: 449, icon: 'game-controller', iconBg: '#F3E5F5', iconColor: '#6A1B9A', badge: null },
-      ],
-    },
-  ],
-  Fashion: [
-    {
-      id: 'fa-pop', title: 'Popular',
-      items: [
-        { id: 'f1', name: 'Classic White Tee', unit: 'S / M / L / XL', price: 499, mrp: 699, icon: 'shirt', iconBg: '#FCE4EC', iconColor: '#AD1457', badge: 'Top Pick' },
-        { id: 'f2', name: 'Slim Chinos', unit: '30–36 in', price: 1299, mrp: 1799, icon: 'person-outline', iconBg: '#EDE7F6', iconColor: '#4527A0', badge: null },
-        { id: 'f3', name: 'Canvas Sneakers', unit: '6–11 UK', price: 1499, mrp: 1999, icon: 'walk-outline', iconBg: '#FFF8E1', iconColor: '#F9A825', badge: null },
-      ],
-    },
-    {
-      id: 'fa-new', title: 'New Arrivals',
-      items: [
-        { id: 'f4', name: 'Linen Kurta', unit: 'S / M / L / XL', price: 799, mrp: 999, icon: 'shirt-outline', iconBg: '#E8F5E9', iconColor: '#2E7D32', badge: 'New' },
-        { id: 'f5', name: 'Sling Bag', unit: '1 pc', price: 899, mrp: 1199, icon: 'bag', iconBg: '#FCE4EC', iconColor: '#AD1457', badge: 'New' },
-      ],
-    },
-    {
-      id: 'fa-acc', title: 'Accessories',
-      items: [
-        { id: 'f6', name: 'Leather Belt', unit: 'S / M / L', price: 599, mrp: 799, icon: 'ellipse', iconBg: '#FBE9E7', iconColor: '#BF360C', badge: null },
-        { id: 'f7', name: 'Aviator Sunglasses', unit: '1 pc', price: 699, mrp: 999, icon: 'eye-outline', iconBg: '#E8EAF6', iconColor: '#283593', badge: null },
-      ],
-    },
-  ],
-  Wellness: [
-    {
-      id: 'wl-pop', title: 'Popular',
-      items: [
-        { id: 'w1', name: 'Ashwagandha 500mg', unit: '60 caps', price: 349, mrp: 399, icon: 'flower', iconBg: '#F1F8E9', iconColor: '#558B2F', badge: 'Top Pick' },
-        { id: 'w2', name: 'Moringa Powder', unit: '200 g', price: 259, mrp: 299, icon: 'leaf', iconBg: '#E8F5E9', iconColor: '#2E7D32', badge: null },
-        { id: 'w3', name: 'Immunity Shots', unit: '6 pcs', price: 180, mrp: 210, icon: 'flash', iconBg: '#FFF9C4', iconColor: '#F9A825', badge: null },
-      ],
-    },
-    {
-      id: 'wl-new', title: 'New Arrivals',
-      items: [
-        { id: 'w4', name: 'Collagen Serum', unit: '30 ml', price: 799, mrp: 949, icon: 'sparkles', iconBg: '#EDE7F6', iconColor: '#6A1B9A', badge: 'New' },
-        { id: 'w5', name: 'Magnesium Spray', unit: '100 ml', price: 549, mrp: 649, icon: 'water', iconBg: '#E0F7FA', iconColor: '#00838F', badge: 'New' },
-      ],
-    },
-    {
-      id: 'wl-yoga', title: 'Yoga & Fitness',
-      items: [
-        { id: 'w6', name: 'Premium Yoga Mat', unit: '6 mm', price: 899, mrp: 1099, icon: 'fitness', iconBg: '#F1F8E9', iconColor: '#558B2F', badge: null },
-        { id: 'w7', name: 'Resistance Bands', unit: 'Set of 3', price: 399, mrp: 499, icon: 'barbell-outline', iconBg: '#EDE7F6', iconColor: '#4527A0', badge: null },
-      ],
-    },
-  ],
-  'Pet Supplies': [
-    {
-      id: 'pt-pop', title: 'Popular',
-      items: [
-        { id: 'pt1', name: 'Royal Canin Dog Food', unit: '2 kg', price: 899, mrp: 999, icon: 'paw', iconBg: '#FFF3E0', iconColor: '#E65100', badge: 'Top Pick' },
-        { id: 'pt2', name: 'Cat Litter Crystal', unit: '4 kg', price: 649, mrp: 749, icon: 'star-outline', iconBg: '#F3E5F5', iconColor: '#6A1B9A', badge: null },
-        { id: 'pt3', name: 'Pet Shampoo', unit: '200 ml', price: 249, mrp: 299, icon: 'water', iconBg: '#E0F7FA', iconColor: '#006064', badge: null },
-      ],
-    },
-    {
-      id: 'pt-new', title: 'New Arrivals',
-      items: [
-        { id: 'pt4', name: 'Interactive Toy', unit: '1 pc', price: 349, mrp: 449, icon: 'game-controller', iconBg: '#FCE4EC', iconColor: '#AD1457', badge: 'New' },
-        { id: 'pt5', name: 'GPS Pet Collar', unit: '1 pc', price: 1499, mrp: 1799, icon: 'locate', iconBg: '#EDE7F6', iconColor: '#4527A0', badge: 'New' },
-      ],
-    },
-    {
-      id: 'pt-health', title: 'Health & Care',
-      items: [
-        { id: 'pt6', name: 'Flea Treatment', unit: '3 doses', price: 549, mrp: 649, icon: 'shield', iconBg: '#E8F5E9', iconColor: '#2E7D32', badge: null },
-        { id: 'pt7', name: 'Dental Chews', unit: '15 pcs', price: 299, mrp: 349, icon: 'happy', iconBg: '#FFF8E1', iconColor: '#F9A825', badge: null },
-      ],
-    },
-  ],
-};
-
-
 // ─── StatPill ─────────────────────────────────────────────────────────────────
 
 function StatPill({ icon, value, label }) {
@@ -249,26 +72,78 @@ function StatPill({ icon, value, label }) {
   );
 }
 
-// ─── ProductCard ──────────────────────────────────────────────────────────────
+// ─── QuantityControl ──────────────────────────────────────────────────────────
 
-function ProductCard({ product }) {
-  const isNew = product.badge === 'New' || product.badge === 'Fresh';
+function QuantityControl({ quantity, onAdd, onRemove, maxReached }) {
+  return (
+    <View style={styles.qtyControl}>
+      <TouchableOpacity style={styles.qtyBtn} onPress={onRemove} activeOpacity={0.8}>
+        <Ionicons name="remove" size={15} color={WHITE} />
+      </TouchableOpacity>
+      <Text style={styles.qtyCount}>{quantity}</Text>
+      <TouchableOpacity
+        style={[styles.qtyBtn, maxReached && styles.qtyBtnDisabled]}
+        onPress={onAdd}
+        activeOpacity={0.8}
+        disabled={maxReached}
+      >
+        <Ionicons name="add" size={15} color={maxReached ? 'rgba(255,255,255,0.4)' : WHITE} />
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+// ─── InventoryCard ─────────────────────────────────────────────────────────────
+
+function InventoryCard({ item, storeId, storeName }) {
+  const { addItem, removeItem, getItemQuantity } = useCart();
+  const quantity   = getItemQuantity(item.id, storeId);
+  const maxReached = item.max_quantity_per_item
+    ? quantity >= item.max_quantity_per_item
+    : false;
+
+  const discount =
+    item.base_price && item.base_price > item.price
+      ? Math.round((1 - item.price / item.base_price) * 100)
+      : 0;
+
+  const isNew      = item.badge === 'New' || item.badge === 'Fresh';
   const badgeBg    = isNew ? '#E8F5E9' : ACCENT_LIGHT;
   const badgeColor = isNew ? SUCCESS    : ACCENT;
 
-  const discount = product.mrp > product.price
-    ? Math.round((1 - product.price / product.mrp) * 100)
-    : 0;
+  const handleAdd = useCallback(() => {
+    addItem({
+      id:                    item.id,
+      name:                  item.name,
+      unit:                  item.unit,
+      price:                 item.price,
+      base_price:            item.base_price,
+      icon:                  item.icon,
+      icon_bg:               item.icon_bg,
+      icon_color:            item.icon_color,
+      storeId,
+      storeName,
+      max_quantity_per_item: item.max_quantity_per_item,
+    });
+  }, [item, storeId, storeName, addItem]);
+
+  const handleRemove = useCallback(() => {
+    removeItem(item.id, storeId);
+  }, [item.id, storeId, removeItem]);
 
   return (
-    <View style={styles.productCard}>
+    <View style={[styles.productCard, !item.active && styles.productCardInactive]}>
       {/* Icon swatch */}
-      <View style={[styles.swatch, { backgroundColor: product.iconBg }]}>
-        <Ionicons name={product.icon} size={28} color={product.iconColor} />
-        {product.badge && (
+      <View style={[styles.swatch, { backgroundColor: item.icon_bg ?? '#F0F1F8' }]}>
+        <Ionicons
+          name={item.icon ?? 'cube-outline'}
+          size={28}
+          color={item.active ? (item.icon_color ?? ACCENT) : TEXT_MUTED}
+        />
+        {item.badge && item.active && (
           <View style={[styles.swatchBadge, { backgroundColor: badgeBg }]}>
             <Text style={[styles.swatchBadgeText, { color: badgeColor }]}>
-              {product.badge}
+              {item.badge}
             </Text>
           </View>
         )}
@@ -276,25 +151,80 @@ function ProductCard({ product }) {
 
       {/* Details */}
       <View style={styles.productDetails}>
-        <Text style={styles.productName} numberOfLines={2}>{product.name}</Text>
-        <Text style={styles.productUnit}>{product.unit}</Text>
-        <View style={styles.priceRow}>
-          <Text style={styles.price}>₹{product.price}</Text>
-          {discount > 0 && (
-            <Text style={styles.mrp}>₹{product.mrp}</Text>
-          )}
-          {discount > 0 && (
-            <View style={styles.discountBadge}>
-              <Text style={styles.discountText}>{discount}% off</Text>
-            </View>
-          )}
-        </View>
+        <Text
+          style={[styles.productName, !item.active && styles.textInactive]}
+          numberOfLines={2}
+        >
+          {item.name}
+        </Text>
+        <Text style={[styles.productUnit, !item.active && styles.textInactive]}>
+          {item.unit}
+        </Text>
+
+        {item.active ? (
+          <View style={styles.priceRow}>
+            <Text style={styles.price}>₹{item.price}</Text>
+            {discount > 0 && (
+              <Text style={styles.basePrice}>₹{item.base_price}</Text>
+            )}
+            {discount > 0 && (
+              <View style={styles.discountBadge}>
+                <Text style={styles.discountText}>{discount}% off</Text>
+              </View>
+            )}
+          </View>
+        ) : (
+          <Text style={styles.unavailableText}>Out of stock</Text>
+        )}
       </View>
 
-      {/* View button */}
-      <TouchableOpacity style={styles.viewBtn} activeOpacity={0.8}>
-        <Text style={styles.viewBtnText}>View</Text>
-      </TouchableOpacity>
+      {/* Action */}
+      <View style={styles.actionCol}>
+        {!item.active ? (
+          <View style={styles.unavailableMark}>
+            <Ionicons name="close-circle-outline" size={20} color={TEXT_MUTED} />
+          </View>
+        ) : quantity === 0 ? (
+          <TouchableOpacity style={styles.addBtn} onPress={handleAdd} activeOpacity={0.8}>
+            <Text style={styles.addBtnText}>ADD</Text>
+            <Ionicons name="add" size={13} color={ACCENT} />
+          </TouchableOpacity>
+        ) : item.multi_add ? (
+          <QuantityControl
+            quantity={quantity}
+            onAdd={handleAdd}
+            onRemove={handleRemove}
+            maxReached={maxReached}
+          />
+        ) : (
+          <TouchableOpacity style={styles.addedBtn} onPress={handleRemove} activeOpacity={0.8}>
+            <Ionicons name="checkmark" size={13} color={ACCENT} />
+            <Text style={styles.addedBtnText}>ADDED</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
+}
+
+// ─── SectionBlock ──────────────────────────────────────────────────────────────
+
+function SectionBlock({ section, storeId, storeName, onLayout, isLast }) {
+  return (
+    <View onLayout={onLayout}>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>{section.title}</Text>
+        <View style={styles.sectionRule} />
+      </View>
+
+      {section.items.map((item, idx) => (
+        <React.Fragment key={item.id}>
+          <InventoryCard item={item} storeId={storeId} storeName={storeName} />
+          {idx < section.items.length - 1 && <View style={styles.itemDivider} />}
+        </React.Fragment>
+      ))}
+
+      {!isLast && <View style={styles.sectionGap} />}
     </View>
   );
 }
@@ -302,33 +232,88 @@ function ProductCard({ product }) {
 // ─── Screen ────────────────────────────────────────────────────────────────────
 
 export default function StoreDetailScreen({ route, navigation }) {
-  const { store }    = route.params;
-  const insets       = useSafeAreaInsets();
-  const scrollY      = useRef(new Animated.Value(0)).current;
-  const scrollRef    = useRef(null);
+  const { store: routeStore } = route.params;
+  const insets     = useSafeAreaInsets();
+  const scrollY    = useRef(new Animated.Value(0)).current;
+  const scrollRef  = useRef(null);
   const sectionOffsets = useRef({});
+
   const [activeSection, setActiveSection] = useState(0);
+  const [toastMsg, setToastMsg] = useState('');
+  const showToast = useCallback(msg => setToastMsg(msg), []);
 
-  const sections = CATALOGUE[store.category] ?? CATALOGUE.Grocery;
-  const address  = STORE_ADDRESS[store.id] ?? '123, Local Market, Bangalore';
+  // ── Store detail (enriched by API) ────────────────────────────────────────
+  const [storeDetail, setStoreDetail] = useState(routeStore);
 
-  // ── Animations (useNativeDriver: true throughout) ──────────────────────────
+  useEffect(() => {
+    getStoreDetail(routeStore.id)
+      .then(res => setStoreDetail(res.data))
+      .catch(() => showToast('Could not load store details.'));
+  }, [routeStore.id]);
 
-  // Parallax: hero scrolls at ~55% of scroll speed  (positive translateY counters upward scroll)
+  // ── Inventory ──────────────────────────────────────────────────────────────
+  const [sections,    setSections]    = useState([]);
+  const [invLoading,  setInvLoading]  = useState(false);
+  const [invHasNext,  setInvHasNext]  = useState(false);
+
+  const invPageRef      = useRef(1);
+  const invHasNextRef   = useRef(false);
+  const isLoadingInvRef = useRef(false);
+
+  const fetchInventory = useCallback(async (pageNum) => {
+    if (isLoadingInvRef.current) return;
+    isLoadingInvRef.current = true;
+    setInvLoading(true);
+    try {
+      const res = await getInventories({ storeId: routeStore.id, page: pageNum });
+      setSections(prev => pageNum === 1 ? res.data : [...prev, ...res.data]);
+      invHasNextRef.current = res.pagination.has_next;
+      invPageRef.current    = pageNum;
+      setInvHasNext(res.pagination.has_next);
+    } catch {
+      showToast('Could not load products. Please try again.');
+    } finally {
+      isLoadingInvRef.current = false;
+      setInvLoading(false);
+    }
+  }, [routeStore.id]);
+
+  useEffect(() => { fetchInventory(1); }, []);
+
+  // Scroll listener drives pagination
+  const handleScrollListener = useCallback((event) => {
+    const { contentOffset, layoutMeasurement, contentSize } = event.nativeEvent;
+    const nearBottom =
+      contentOffset.y + layoutMeasurement.height >= contentSize.height - 320;
+    if (nearBottom && invHasNextRef.current && !isLoadingInvRef.current) {
+      fetchInventory(invPageRef.current + 1);
+    }
+  }, [fetchInventory]);
+
+  // ── Normalise camel/snake variants from routeStore (L1) vs API detail ─────
+  const coverBg      = storeDetail.cover_bg     ?? storeDetail.coverBg;
+  const iconColor    = storeDetail.icon_color    ?? storeDetail.iconColor;
+  const tagColor     = storeDetail.tag_color     ?? storeDetail.tagColor;
+  const reviewCount  = storeDetail.review_count  ?? storeDetail.reviewCount  ?? 0;
+  const deliveryTime = storeDetail.delivery_time ?? storeDetail.deliveryTime;
+
+  // Cart count for this store (drives bottom padding)
+  const { items } = useCart();
+  const storeCartCount = items
+    .filter(i => i.storeId === routeStore.id)
+    .reduce((s, i) => s + i.quantity, 0);
+
+  // ── Animations ─────────────────────────────────────────────────────────────
   const heroTranslateY = scrollY.interpolate({
     inputRange: [0, HERO_H],
     outputRange: [0, HERO_H * 0.45],
     extrapolate: 'clamp',
   });
-
-  // Stretch on overscroll (iOS bounce pull-down, scrollY < 0)
   const heroScale = scrollY.interpolate({
     inputRange: [-HERO_H, 0],
     outputRange: [1.5, 1],
     extrapolate: 'clamp',
   });
-
-  // Mini-header fades in once hero slides mostly out of view
   const miniHeaderOpacity = scrollY.interpolate({
     inputRange: [HERO_H - 70, HERO_H - 10],
     outputRange: [0, 1],
@@ -336,23 +321,22 @@ export default function StoreDetailScreen({ route, navigation }) {
   });
 
   // ── Section navigation ─────────────────────────────────────────────────────
-
-  const scrollToSection = (index) => {
+  const scrollToSection = useCallback((index) => {
     const y = sectionOffsets.current[index];
     if (y != null && scrollRef.current) {
-      // offset by insets.top + mini-header height so section header stays visible
       scrollRef.current.scrollTo({ y: Math.max(0, y - insets.top - 64), animated: true });
     }
     setActiveSection(index);
-  };
+  }, [insets.top]);
+
+  const cartBottomPad = storeCartCount > 0 ? 96 : 48;
 
   // ── Render ─────────────────────────────────────────────────────────────────
-
   return (
     <View style={styles.root}>
       <StatusBar barStyle="dark-content" />
 
-      {/* ━━━ Animated mini-header (fades in on scroll) ━━━━━━━━━━━━━━━━━━━━━━━ */}
+      {/* Animated mini-header */}
       <Animated.View
         pointerEvents="none"
         style={[
@@ -361,11 +345,11 @@ export default function StoreDetailScreen({ route, navigation }) {
         ]}
       >
         <View style={styles.miniHeaderInner}>
-          <Text style={styles.miniHeaderTitle} numberOfLines={1}>{store.name}</Text>
+          <Text style={styles.miniHeaderTitle} numberOfLines={1}>{storeDetail.name}</Text>
         </View>
       </Animated.View>
 
-      {/* ━━━ Floating back button ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+      {/* Floating back button */}
       <TouchableOpacity
         style={[styles.floatBtn, { top: insets.top + 10, left: 16 }]}
         onPress={() => navigation.goBack()}
@@ -374,7 +358,7 @@ export default function StoreDetailScreen({ route, navigation }) {
         <Ionicons name="arrow-back" size={18} color={TEXT_PRI} />
       </TouchableOpacity>
 
-      {/* ━━━ Floating favourite button ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+      {/* Floating favourite button */}
       <TouchableOpacity
         style={[styles.floatBtn, { top: insets.top + 10, right: 16 }]}
         activeOpacity={0.85}
@@ -382,93 +366,99 @@ export default function StoreDetailScreen({ route, navigation }) {
         <Ionicons name="heart-outline" size={18} color={TEXT_PRI} />
       </TouchableOpacity>
 
-      {/* ━━━ Scrollable body ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+      {/* Scrollable body */}
       <Animated.ScrollView
         ref={scrollRef}
         style={styles.scroll}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 48 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + cartBottomPad }}
         showsVerticalScrollIndicator={false}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: true },
+          { useNativeDriver: true, listener: handleScrollListener },
         )}
         scrollEventThrottle={16}
       >
-        {/* ── Parallax hero ─────────────────────────────────────────────── */}
+        {/* Parallax hero */}
         <Animated.View
           style={[
             styles.hero,
             {
-              backgroundColor: store.coverBg,
+              backgroundColor: coverBg,
               transform: [{ translateY: heroTranslateY }, { scale: heroScale }],
             },
           ]}
         >
-          {/* Large icon wash */}
           <Ionicons
-            name={store.icon}
+            name={storeDetail.icon}
             size={130}
-            color={`${store.iconColor}10`}
+            color={`${iconColor}10`}
             style={styles.heroBgIcon}
           />
-          {/* Store initial monogram */}
           <View style={[
             styles.heroMonogram,
-            { backgroundColor: `${store.iconColor}18`, borderColor: `${store.iconColor}35` },
+            { backgroundColor: `${iconColor}18`, borderColor: `${iconColor}35` },
           ]}>
-            <Text style={[styles.heroMonogramText, { color: store.iconColor }]}>
-              {store.name.charAt(0)}
+            <Text style={[styles.heroMonogramText, { color: iconColor }]}>
+              {storeDetail.name.charAt(0)}
             </Text>
           </View>
-          {/* Status tag */}
-          {store.tag && (
-            <View style={[styles.heroTag, { backgroundColor: store.tagColor }]}>
-              <Text style={styles.heroTagText}>{store.tag}</Text>
+          {storeDetail.tag && (
+            <View style={[styles.heroTag, { backgroundColor: tagColor }]}>
+              <Text style={styles.heroTagText}>{storeDetail.tag}</Text>
             </View>
           )}
-          {/* Rating chip */}
           <View style={styles.heroRating}>
             <Ionicons name="star" size={11} color={AMBER} />
-            <Text style={styles.heroRatingText}>{store.rating}</Text>
+            <Text style={styles.heroRatingText}>{storeDetail.rating}</Text>
           </View>
         </Animated.View>
 
-        {/* ── Info card (overlaps hero) ──────────────────────────────────── */}
+        {/* Info card (overlaps hero) */}
         <View style={styles.infoCard}>
-          {/* Name + category row */}
           <View style={styles.infoTitleRow}>
             <View style={styles.infoTitleBlock}>
-              <Text style={styles.storeName} numberOfLines={1}>{store.name}</Text>
+              <Text style={styles.storeName} numberOfLines={1}>{storeDetail.name}</Text>
               <Text style={styles.storeMeta}>
-                {store.category} · {store.reviewCount.toLocaleString()} reviews
+                {storeDetail.category} · {reviewCount.toLocaleString()} reviews
               </Text>
             </View>
             <View style={styles.ratingBadge}>
               <Ionicons name="star" size={13} color={AMBER} />
-              <Text style={styles.ratingText}>{store.rating}</Text>
+              <Text style={styles.ratingText}>{storeDetail.rating}</Text>
             </View>
           </View>
 
-          {/* Address */}
-          <View style={styles.addressRow}>
-            <Ionicons name="location-outline" size={14} color={ACCENT} />
-            <Text style={styles.addressText} numberOfLines={2}>{address}</Text>
-          </View>
+          {storeDetail.address ? (
+            <View style={styles.addressRow}>
+              <Ionicons name="location-outline" size={14} color={ACCENT} />
+              <Text style={styles.addressText} numberOfLines={2}>{storeDetail.address}</Text>
+            </View>
+          ) : null}
 
           <View style={styles.infoDivider} />
 
-          {/* Stat pills */}
           <View style={styles.statsRow}>
-            <StatPill icon="time-outline"     value={store.deliveryTime} label="Delivery" />
+            <StatPill icon="time-outline"     value={deliveryTime}         label="Delivery" />
             <View style={styles.statSep} />
-            <StatPill icon="location-outline" value={store.distance}    label="Distance" />
+            <StatPill icon="location-outline" value={storeDetail.distance} label="Distance" />
             <View style={styles.statSep} />
-            <StatPill icon="bicycle-outline"  value="Free"              label="Delivery fee" />
+            <StatPill icon="bicycle-outline"  value="Free"                 label="Delivery fee" />
           </View>
+
+          {storeDetail.timing && (
+            <>
+              <View style={styles.infoDivider} />
+              <View style={styles.timingRow}>
+                <Ionicons name="time-outline" size={13} color={TEXT_MUTED} />
+                <Text style={styles.timingText}>
+                  Open: <Text style={styles.timingBold}>{storeDetail.timing}</Text>
+                </Text>
+              </View>
+            </>
+          )}
 
           <View style={styles.infoDivider} />
 
-          {/* CTA row */}
           <View style={styles.ctaRow}>
             <TouchableOpacity style={styles.callBtn} activeOpacity={0.85}>
               <Ionicons name="call-outline" size={16} color={ACCENT} />
@@ -481,55 +471,75 @@ export default function StoreDetailScreen({ route, navigation }) {
           </View>
         </View>
 
-        {/* ── Category tab strip ────────────────────────────────────────── */}
-        <View style={styles.tabWrapper}>
-          <FlatList
-            horizontal
-            data={sections}
-            keyExtractor={(s) => s.id}
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.tabStrip}
-            renderItem={({ item, index }) => (
-              <TouchableOpacity
-                style={[styles.tab, activeSection === index && styles.tabActive]}
-                onPress={() => scrollToSection(index)}
-                activeOpacity={0.75}
-              >
-                <Text style={[styles.tabLabel, activeSection === index && styles.tabLabelActive]}>
-                  {item.title}
-                </Text>
-              </TouchableOpacity>
-            )}
-          />
-        </View>
-
-        {/* ── Sectioned product list ────────────────────────────────────── */}
-        {sections.map((section, sIdx) => (
-          <View
-            key={section.id}
-            onLayout={(e) => { sectionOffsets.current[sIdx] = e.nativeEvent.layout.y; }}
-          >
-            {/* Section header with decorative rule */}
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>{section.title}</Text>
-              <View style={styles.sectionRule} />
-            </View>
-
-            {/* Product cards */}
-            {section.items.map((item, itemIdx) => (
-              <React.Fragment key={item.id}>
-                <ProductCard product={item} />
-                {itemIdx < section.items.length - 1 && (
-                  <View style={styles.itemDivider} />
-                )}
-              </React.Fragment>
-            ))}
-
-            {/* Thick section gap (Zomato-style divider) */}
-            {sIdx < sections.length - 1 && <View style={styles.sectionGap} />}
+        {/* Category tab strip */}
+        {sections.length > 0 && (
+          <View style={styles.tabWrapper}>
+            <FlatList
+              horizontal
+              data={sections}
+              keyExtractor={s => s.id}
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.tabStrip}
+              renderItem={({ item: sec, index }) => (
+                <TouchableOpacity
+                  style={[styles.tab, activeSection === index && styles.tabActive]}
+                  onPress={() => scrollToSection(index)}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[styles.tabLabel, activeSection === index && styles.tabLabelActive]}>
+                    {sec.title}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            />
           </View>
+        )}
+
+        {/* Initial inventory loading */}
+        {invLoading && sections.length === 0 && (
+          <View style={styles.inventoryLoader}>
+            <ActivityIndicator size="small" color={ACCENT} />
+            <Text style={styles.inventoryLoadingText}>Loading products…</Text>
+          </View>
+        )}
+
+        {/* Sectioned inventory */}
+        {sections.map((section, sIdx) => (
+          <SectionBlock
+            key={section.id}
+            section={section}
+            storeId={routeStore.id}
+            storeName={storeDetail.name}
+            isLast={sIdx === sections.length - 1 && !invHasNext}
+            onLayout={e => { sectionOffsets.current[sIdx] = e.nativeEvent.layout.y; }}
+          />
         ))}
+
+        {/* Load more spinner */}
+        {invLoading && sections.length > 0 && (
+          <View style={styles.loadMoreLoader}>
+            <ActivityIndicator size="small" color={ACCENT} />
+          </View>
+        )}
+
+        {/* Empty inventory */}
+        {!invLoading && sections.length === 0 && (
+          <View style={styles.emptyInventory}>
+            <Ionicons name="cube-outline" size={40} color={BORDER} />
+            <Text style={styles.emptyInventoryText}>No products available</Text>
+          </View>
+        )}
       </Animated.ScrollView>
+
+      {/* Cart floating card */}
+      <CartFloatingCard
+        storeId={routeStore.id}
+        onPress={() => navigation.navigate('Cart')}
+        bottomInset={insets.bottom}
+      />
+
+      {/* Toast */}
+      <Toast message={toastMsg} onDismiss={() => setToastMsg('')} />
     </View>
   );
 }
@@ -856,6 +866,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
+  productCardInactive: {
+    opacity: 0.5,
+  },
   swatch: {
     width: 72,
     height: 72,
@@ -904,11 +917,11 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   price: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
     color: TEXT_PRI,
   },
-  mrp: {
+  basePrice: {
     fontSize: 12,
     color: TEXT_MUTED,
     textDecorationLine: 'line-through',
@@ -925,25 +938,138 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: SUCCESS,
   },
-  viewBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: 10,
+  unavailableText: {
+    fontSize: 12,
+    color: TEXT_MUTED,
+    fontWeight: '500',
+    marginTop: 5,
+    fontStyle: 'italic',
+  },
+  textInactive: {
+    color: TEXT_MUTED,
+  },
+
+  // ── Action column ─────────────────────────────────────────────────────────
+  actionCol: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    minWidth: 80,
+  },
+  addBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
     borderWidth: 1.5,
     borderColor: ACCENT,
-    flexShrink: 0,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    minWidth: 72,
   },
-  viewBtnText: {
+  addBtnText: {
     fontSize: 13,
     fontWeight: '700',
     color: ACCENT,
+    letterSpacing: 0.5,
+  },
+  addedBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+    backgroundColor: ACCENT_LIGHT,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    minWidth: 72,
+  },
+  addedBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: ACCENT,
+    letterSpacing: 0.5,
+  },
+  unavailableMark: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 72,
   },
 
-  // ── Dividers ────────────────────────────────────────────────────────────────
+  // ── Quantity stepper ─────────────────────────────────────────────────────
+  qtyControl: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: ACCENT,
+    borderRadius: 8,
+    overflow: 'hidden',
+    minWidth: 80,
+  },
+  qtyBtn: {
+    width: 28,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  qtyBtnDisabled: {
+    opacity: 0.4,
+  },
+  qtyCount: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 14,
+    fontWeight: '800',
+    color: WHITE,
+  },
+
+  // ── Timing row ────────────────────────────────────────────────────────────
+  timingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  timingText: {
+    fontSize: 13,
+    color: TEXT_MUTED,
+    fontWeight: '500',
+  },
+  timingBold: {
+    color: TEXT_PRI,
+    fontWeight: '700',
+  },
+
+  // ── Inventory loading / empty ─────────────────────────────────────────────
+  inventoryLoader: {
+    paddingVertical: 32,
+    alignItems: 'center',
+    gap: 10,
+  },
+  inventoryLoadingText: {
+    fontSize: 13,
+    color: TEXT_MUTED,
+    fontWeight: '500',
+  },
+  loadMoreLoader: {
+    paddingVertical: 20,
+    alignItems: 'center',
+  },
+  emptyInventory: {
+    alignItems: 'center',
+    paddingVertical: 40,
+    gap: 10,
+  },
+  emptyInventoryText: {
+    fontSize: 14,
+    color: TEXT_MUTED,
+    fontWeight: '500',
+  },
+
+  // ── Dividers ─────────────────────────────────────────────────────────────
   itemDivider: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: BORDER,
-    marginLeft: 102, // aligns with text, skips swatch
+    marginHorizontal: 16,
   },
   sectionGap: {
     height: 8,

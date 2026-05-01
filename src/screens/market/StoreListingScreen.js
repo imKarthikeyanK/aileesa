@@ -7,7 +7,7 @@
  *       ├─ Expand zone (68 dp): location row + greeting → slides behind title bar on scroll
  *       └─ Search bar (64 dp): pinned, always visible, moves flush under title bar when collapsed
  *   • Category filter chips
- *   • FlatList of StoreCards — 12 dp image radius, rating badge, distance tag
+ *   • Paginated FlatList of StoreCards via GET /stores API
  *   • Tap card → StoreDetail (L2)
  *
  * Animation render order (bottom → top):
@@ -17,20 +17,22 @@
  *   → expand zone slides BEHIND the title bar on scroll
  */
 
-import React, { useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  StyleSheet,
-  Dimensions,
-  StatusBar,
-  Platform,
+  ActivityIndicator,
   Animated,
+  Dimensions,
+  FlatList,
+  Platform,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { getStores } from '../../api/storeApi';
 
 const { width: SW } = Dimensions.get('window');
 
@@ -54,7 +56,7 @@ const TITLE_BAR_H = 56;   // always visible
 const EXPAND_H    = 68;   // collapses on scroll
 const SEARCH_H    = 64;   // always visible, moves flush with title bar when collapsed
 
-// ─── Dummy Store Data ──────────────────────────────────────────────────────────
+// ─── Category Filter Config ────────────────────────────────────────────────────
 
 const CATEGORIES = [
   { id: 'all',          label: 'All',         icon: 'grid-outline' },
@@ -67,7 +69,9 @@ const CATEGORIES = [
   { id: 'Pet Supplies', label: 'Pets',        icon: 'paw-outline' },
 ];
 
-const STORES = [
+// ─── (Legacy static STORES removed — data now comes from getStores API) ─────────
+
+const _UNUSED_STORES = [
   {
     id: '1',
     name: 'Green Basket',
@@ -206,30 +210,44 @@ function CategoryChip({ item, selected, onPress }) {
 // ─── StoreCard ─────────────────────────────────────────────────────────────────
 
 function StoreCard({ store, onPress }) {
+  // API returns snake_case; support both for forward-compat
+  const coverBg    = store.cover_bg    ?? store.coverBg;
+  const iconColor  = store.icon_color  ?? store.iconColor;
+  const tagColor   = store.tag_color   ?? store.tagColor;
+  const reviewCount = store.review_count ?? store.reviewCount ?? 0;
+  const deliveryTime = store.delivery_time ?? store.deliveryTime;
+
   return (
     <TouchableOpacity
-      style={styles.card}
+      style={[styles.card, store.is_open === false && styles.cardClosed]}
       onPress={onPress}
       activeOpacity={0.88}
     >
       {/* ── Image area — 12 dp border radius (spec) ─────────── */}
-      <View style={[styles.cardImage, { backgroundColor: store.coverBg }]}>
+      <View style={[styles.cardImage, { backgroundColor: coverBg }]}>
         {/* Large background icon — decorative wash */}
         <Ionicons
           name={store.icon}
           size={64}
-          color={`${store.iconColor}18`}
+          color={`${iconColor}18`}
           style={styles.cardBgIcon}
         />
         {/* Store initial monogram */}
         <View style={[styles.monogram, {
-          backgroundColor: `${store.iconColor}1A`,
-          borderColor: `${store.iconColor}30`,
+          backgroundColor: `${iconColor}1A`,
+          borderColor: `${iconColor}30`,
         }]}>
-          <Text style={[styles.monogramText, { color: store.iconColor }]}>
+          <Text style={[styles.monogramText, { color: iconColor }]}>
             {store.name.charAt(0)}
           </Text>
         </View>
+
+        {/* Closed overlay */}
+        {store.is_open === false && (
+          <View style={styles.closedOverlay}>
+            <Text style={styles.closedOverlayText}>Closed</Text>
+          </View>
+        )}
 
         {/* Distance tag — bottom-left absolute */}
         <View style={styles.distanceBadge}>
@@ -238,8 +256,8 @@ function StoreCard({ store, onPress }) {
         </View>
 
         {/* Status tag — top-left absolute */}
-        {store.tag && (
-          <View style={[styles.tagBadge, { backgroundColor: store.tagColor }]}>
+        {store.tag && store.is_open !== false && (
+          <View style={[styles.tagBadge, { backgroundColor: tagColor }]}>
             <Text style={styles.tagText}>{store.tag}</Text>
           </View>
         )}
@@ -263,10 +281,10 @@ function StoreCard({ store, onPress }) {
 
         <View style={styles.cardMetaRow}>
           <Ionicons name="time-outline" size={12} color={TEXT_MUTED} />
-          <Text style={styles.cardMetaText}>{store.deliveryTime}</Text>
+          <Text style={styles.cardMetaText}>{deliveryTime}</Text>
           <View style={styles.metaDot} />
           <Text style={styles.reviewCount}>
-            {store.reviewCount.toLocaleString()} reviews
+            {reviewCount.toLocaleString()} reviews
           </Text>
         </View>
       </View>
@@ -277,48 +295,100 @@ function StoreCard({ store, onPress }) {
 // ─── Screen ────────────────────────────────────────────────────────────────────
 
 export default function StoreListingScreen({ navigation }) {
-  const insets            = useSafeAreaInsets();
-  const scrollY           = useRef(new Animated.Value(0)).current;
+  const insets  = useSafeAreaInsets();
+  const scrollY = useRef(new Animated.Value(0)).current;
+
+  // ── Category filter ───────────────────────────────────────────────────────────
   const [category, setCategory] = useState('all');
+
+  // ── Paginated store list ──────────────────────────────────────────────────────
+  const [stores,     setStores]     = useState([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [loading,    setLoading]    = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error,      setError]      = useState(null);
+
+  // Refs for pagination state (avoid stale closures in callbacks)
+  const pageRef       = useRef(1);
+  const hasNextRef    = useRef(false);
+  const isLoadingRef  = useRef(false);
+  const categoryRef   = useRef('all');
+
+  const fetchStores = useCallback(async (pageNum, replace) => {
+    if (isLoadingRef.current) return;
+    isLoadingRef.current = true;
+    if (replace) setLoading(true);
+
+    try {
+      const res = await getStores({ page: pageNum, category: categoryRef.current });
+
+      if (replace) {
+        setStores(res.data);
+      } else {
+        setStores(prev => [...prev, ...res.data]);
+      }
+
+      setTotalCount(res.pagination.total);
+      hasNextRef.current = res.pagination.has_next;
+      pageRef.current    = pageNum;
+      setError(null);
+    } catch (err) {
+      setError(err.message || 'Failed to load stores. Please try again.');
+    } finally {
+      isLoadingRef.current = false;
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []); // stable — reads from refs
+
+  // Initial load + category-change refetch
+  useEffect(() => {
+    categoryRef.current = category;
+    pageRef.current     = 1;
+    hasNextRef.current  = false;
+    fetchStores(1, true);
+  }, [category]);
+
+  const handleEndReached = useCallback(() => {
+    if (hasNextRef.current && !isLoadingRef.current) {
+      fetchStores(pageRef.current + 1, false);
+    }
+  }, [fetchStores]);
+
+  const handleRefresh = useCallback(() => {
+    setRefreshing(true);
+    pageRef.current    = 1;
+    hasNextRef.current = false;
+    fetchStores(1, true);
+  }, [fetchStores]);
 
   const TOTAL_HEADER_H = insets.top + TITLE_BAR_H + EXPAND_H + SEARCH_H - 10;
 
   // ── Animated interpolations (all useNativeDriver: true) ──────────────────────
 
-  // The expand zone + search bar container slides up by EXPAND_H
   const containerTranslateY = scrollY.interpolate({
     inputRange: [0, EXPAND_H],
-    outputRange: [0, -EXPAND_H+32],
+    outputRange: [0, -EXPAND_H + 32],
     extrapolate: 'clamp',
   });
 
-  // Expand zone fades out quickly as user starts scrolling
   const expandOpacity = scrollY.interpolate({
     inputRange: [0, EXPAND_H * 0.55],
     outputRange: [1, 0],
     extrapolate: 'clamp',
   });
 
-  // Title bar bottom border fades in once expand zone is hidden
   const titleBorderOpacity = scrollY.interpolate({
     inputRange: [EXPAND_H - 10, EXPAND_H + 10],
     outputRange: [0, 1],
     extrapolate: 'clamp',
   });
 
-  // Wordmark gets a tiny scale bump when collapsed
   const wordmarkScale = scrollY.interpolate({
     inputRange: [0, EXPAND_H],
     outputRange: [1, 1.04],
     extrapolate: 'clamp',
   });
-
-  // ── Derived list data ─────────────────────────────────────────────────────────
-
-  const filteredStores =
-    category === 'all'
-      ? STORES
-      : STORES.filter((s) => s.category === category);
 
   // ── Sub-renders ───────────────────────────────────────────────────────────────
 
@@ -327,7 +397,7 @@ export default function StoreListingScreen({ navigation }) {
       <FlatList
         horizontal
         data={CATEGORIES}
-        keyExtractor={(i) => i.id}
+        keyExtractor={i => i.id}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.categoryRow}
         renderItem={({ item }) => (
@@ -340,24 +410,66 @@ export default function StoreListingScreen({ navigation }) {
       />
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Stores Near You</Text>
-        <Text style={styles.sectionCount}>{filteredStores.length} found</Text>
+        {totalCount > 0 && (
+          <Text style={styles.sectionCount}>{totalCount} found</Text>
+        )}
       </View>
     </View>
   );
 
-  const renderEmpty = () => (
-    <View style={styles.emptyState}>
-      <Ionicons name="storefront-outline" size={52} color={BORDER} />
-      <Text style={styles.emptyTitle}>No stores in this category</Text>
-      <Text style={styles.emptySubtitle}>Try selecting a different filter</Text>
-    </View>
-  );
+  const renderListFooter = () => {
+    if (error) {
+      return (
+        <View style={styles.errorBanner}>
+          <Ionicons name="alert-circle-outline" size={16} color="#C62828" />
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity onPress={() => fetchStores(pageRef.current, false)}>
+            <Text style={styles.retryText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    if (!loading && hasNextRef.current) {
+      return (
+        <TouchableOpacity
+          style={styles.loadMoreBtn}
+          onPress={handleEndReached}
+          activeOpacity={0.75}
+        >
+          <Text style={styles.loadMoreText}>Load more</Text>
+        </TouchableOpacity>
+      );
+    }
+    if (loading && stores.length > 0) {
+      return (
+        <View style={styles.footerLoader}>
+          <ActivityIndicator size="small" color={ACCENT} />
+        </View>
+      );
+    }
+    return null;
+  };
+
+  const renderEmpty = () => {
+    if (loading) {
+      return (
+        <View style={styles.centerLoader}>
+          <ActivityIndicator size="large" color={ACCENT} />
+          <Text style={styles.loadingText}>Finding stores near you…</Text>
+        </View>
+      );
+    }
+    if (error) return null; // error shown in footer
+    return (
+      <View style={styles.emptyState}>
+        <Ionicons name="storefront-outline" size={52} color={BORDER} />
+        <Text style={styles.emptyTitle}>No stores in this category</Text>
+        <Text style={styles.emptySubtitle}>Try selecting a different filter</Text>
+      </View>
+    );
+  };
 
   // ── Layout ────────────────────────────────────────────────────────────────────
-  // Render order matters for z-ordering (later = on top):
-  //   [1] Animated.FlatList        (content, lowest)
-  //   [2] Animated container       (expand zone + search, middle)
-  //   [3] Title bar                (always on top, elevation: 5)
 
   return (
     <View style={styles.root}>
@@ -365,8 +477,8 @@ export default function StoreListingScreen({ navigation }) {
 
       {/* ━━━ [1] Scrollable content ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
       <Animated.FlatList
-        data={filteredStores}
-        keyExtractor={(item) => item.id}
+        data={stores}
+        keyExtractor={item => item.id}
         renderItem={({ item }) => (
           <StoreCard
             store={item}
@@ -375,8 +487,13 @@ export default function StoreListingScreen({ navigation }) {
         )}
         ListHeaderComponent={renderListHeader}
         ListEmptyComponent={renderEmpty}
+        ListFooterComponent={renderListFooter}
         contentContainerStyle={[styles.listContent, { paddingTop: TOTAL_HEADER_H }]}
         showsVerticalScrollIndicator={false}
+        onEndReached={handleEndReached}
+        onEndReachedThreshold={0.4}
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
           { useNativeDriver: true },
@@ -819,5 +936,76 @@ const styles = StyleSheet.create({
   emptySubtitle: {
     fontSize: 13,
     color: TEXT_MUTED,
+  },
+
+  // ── Closed store overlay ─────────────────────────────────────────────────────
+  cardClosed: {
+    opacity: 0.65,
+  },
+  closedOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.28)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closedOverlayText: {
+    color: WHITE,
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+  },
+
+  // ── Pagination / loading ─────────────────────────────────────────────────────
+  centerLoader: {
+    alignItems: 'center',
+    paddingTop: 60,
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: TEXT_MUTED,
+    fontWeight: '500',
+  },
+  footerLoader: {
+    paddingVertical: 20,
+    alignItems: 'center',
+  },
+  loadMoreBtn: {
+    alignSelf: 'center',
+    marginVertical: 16,
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: ACCENT,
+  },
+  loadMoreText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: ACCENT,
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    marginVertical: 12,
+    backgroundColor: '#FFF0F0',
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#FFCDD2',
+  },
+  errorText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#C62828',
+    fontWeight: '500',
+  },
+  retryText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: ACCENT,
   },
 });
