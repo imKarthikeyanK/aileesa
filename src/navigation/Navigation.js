@@ -9,6 +9,7 @@ import { theme } from '../theme/theme';
 import StoreListingScreen from '../screens/market/StoreListingScreen';
 import StoreDetailScreen from '../screens/market/StoreDetailScreen';
 import CartScreen from '../screens/market/CartScreen';
+import LocationPickerScreen from '../screens/LocationPickerScreen';
 import ExploreScreen from '../screens/ExploreScreen';
 import YouScreen from '../screens/YouScreen';
 
@@ -44,6 +45,11 @@ function MarketNavigator() {
         name="Cart"
         component={CartScreen}
         options={{ headerShown: false, animation: 'slide_from_right' }}
+      />
+      <MarketStack.Screen
+        name="LocationPicker"
+        component={LocationPickerScreen}
+        options={{ headerShown: false, animation: 'slide_from_bottom' }}
       />
     </MarketStack.Navigator>
   );

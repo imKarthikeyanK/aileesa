@@ -14,7 +14,10 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.aileesa.app"
+      "bundleIdentifier": "com.aileesa.app",
+      "config": {
+        "googleMapsApiKey": "REPLACE_WITH_YOUR_IOS_GOOGLE_MAPS_API_KEY"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -22,6 +25,11 @@
         "backgroundColor": "#6200EE"
       },
       "package": "com.aileesa.app",
+      "config": {
+        "googleMaps": {
+          "apiKey": "REPLACE_WITH_YOUR_ANDROID_GOOGLE_MAPS_API_KEY"
+        }
+      },
       "splash": {
         "image": "./assets/splash-icon.png",
         "resizeMode": "contain",

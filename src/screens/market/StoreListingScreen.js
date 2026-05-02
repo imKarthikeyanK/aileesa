@@ -550,7 +550,11 @@ export default function StoreListingScreen({ navigation }) {
       >
         {/* Expand zone — fades out on scroll */}
         <Animated.View style={[styles.expandZone, { opacity: expandOpacity }]}>
-          <TouchableOpacity style={styles.locationRow} activeOpacity={0.7}>
+          <TouchableOpacity
+            style={styles.locationRow}
+            activeOpacity={0.7}
+            onPress={() => navigation.navigate('LocationPicker')}
+          >
             <Ionicons name="location" size={13} color={ACCENT} />
             <Text style={styles.locationText} numberOfLines={1}>
               Delivering to{' '}
