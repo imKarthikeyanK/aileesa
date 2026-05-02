@@ -34,6 +34,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { getStores } from '../../api/storeApi';
 import { useLocation } from '../../context/LocationContext';
+import { useTabBar, TAB_BAR_H } from '../../context/TabBarContext';
+import { useCart } from '../../context/CartContext';
+import CartFloatingCard from '../../components/CartFloatingCard';
 import Toast from '../../components/Toast';
 
 const { width: SW } = Dimensions.get('window');
@@ -51,6 +54,10 @@ const TEXT_MUTED   = '#9CA3AF';
 const AMBER        = '#F59E0B';
 const BORDER       = '#EDECF5';
 const SUCCESS      = '#10B981';
+
+// ─── Feature Flags ─────────────────────────────────────────────────────────────
+// Set FEATURE_SEARCH = true to re-enable the search bar in v2.
+const FEATURE_SEARCH = false;
 
 // ─── Layout Constants ──────────────────────────────────────────────────────────
 
@@ -73,120 +80,120 @@ const CATEGORIES = [
 
 // ─── (Legacy static STORES removed — data now comes from getStores API) ─────────
 
-const _UNUSED_STORES = [
-  {
-    id: '1',
-    name: 'Green Basket',
-    category: 'Grocery',
-    rating: 4.8,
-    reviewCount: 1240,
-    deliveryTime: '15–25 min',
-    distance: '0.8 km',
-    coverBg: '#E8F5E9',
-    icon: 'leaf',
-    iconColor: '#2E7D32',
-    tag: 'Popular',
-    tagColor: ACCENT,
-  },
-  {
-    id: '2',
-    name: 'The Bread Box',
-    category: 'Bakery',
-    rating: 4.7,
-    reviewCount: 856,
-    deliveryTime: '20–30 min',
-    distance: '1.2 km',
-    coverBg: '#FFF8E1',
-    icon: 'cafe',
-    iconColor: '#E65100',
-    tag: 'New',
-    tagColor: SUCCESS,
-  },
-  {
-    id: '3',
-    name: 'MediQuick',
-    category: 'Pharmacy',
-    rating: 4.6,
-    reviewCount: 540,
-    deliveryTime: '10–20 min',
-    distance: '0.5 km',
-    coverBg: '#E3F2FD',
-    icon: 'medkit',
-    iconColor: '#1565C0',
-    tag: 'Open 24×7',
-    tagColor: '#1565C0',
-  },
-  {
-    id: '4',
-    name: 'TechHub Local',
-    category: 'Electronics',
-    rating: 4.5,
-    reviewCount: 320,
-    deliveryTime: '30–45 min',
-    distance: '2.1 km',
-    coverBg: '#F3E5F5',
-    icon: 'hardware-chip',
-    iconColor: '#6A1B9A',
-    tag: null,
-    tagColor: null,
-  },
-  {
-    id: '5',
-    name: 'Style Street',
-    category: 'Fashion',
-    rating: 4.4,
-    reviewCount: 628,
-    deliveryTime: '25–35 min',
-    distance: '1.7 km',
-    coverBg: '#FCE4EC',
-    icon: 'shirt',
-    iconColor: '#AD1457',
-    tag: 'Trending',
-    tagColor: '#AD1457',
-  },
-  {
-    id: '6',
-    name: 'Daily Picks',
-    category: 'Grocery',
-    rating: 4.9,
-    reviewCount: 2100,
-    deliveryTime: '12–20 min',
-    distance: '0.3 km',
-    coverBg: '#E0F7FA',
-    icon: 'cart',
-    iconColor: '#00695C',
-    tag: 'Top Rated',
-    tagColor: AMBER,
-  },
-  {
-    id: '7',
-    name: 'PureHerbs',
-    category: 'Wellness',
-    rating: 4.6,
-    reviewCount: 410,
-    deliveryTime: '18–28 min',
-    distance: '1.4 km',
-    coverBg: '#F1F8E9',
-    icon: 'flower',
-    iconColor: '#558B2F',
-    tag: 'Organic',
-    tagColor: SUCCESS,
-  },
-  {
-    id: '8',
-    name: 'Pet Paradise',
-    category: 'Pet Supplies',
-    rating: 4.8,
-    reviewCount: 290,
-    deliveryTime: '30–40 min',
-    distance: '2.3 km',
-    coverBg: '#FFF3E0',
-    icon: 'paw',
-    iconColor: '#E65100',
-    tag: 'New',
-    tagColor: ACCENT,
-  },
-];
+// const _UNUSED_STORES = [
+//   {
+//     id: '1',
+//     name: 'Green Basket',
+//     category: 'Grocery',
+//     rating: 4.8,
+//     reviewCount: 1240,
+//     deliveryTime: '15–25 min',
+//     distance: '0.8 km',
+//     coverBg: '#E8F5E9',
+//     icon: 'leaf',
+//     iconColor: '#2E7D32',
+//     tag: 'Popular',
+//     tagColor: ACCENT,
+//   },
+//   {
+//     id: '2',
+//     name: 'The Bread Box',
+//     category: 'Bakery',
+//     rating: 4.7,
+//     reviewCount: 856,
+//     deliveryTime: '20–30 min',
+//     distance: '1.2 km',
+//     coverBg: '#FFF8E1',
+//     icon: 'cafe',
+//     iconColor: '#E65100',
+//     tag: 'New',
+//     tagColor: SUCCESS,
+//   },
+//   {
+//     id: '3',
+//     name: 'MediQuick',
+//     category: 'Pharmacy',
+//     rating: 4.6,
+//     reviewCount: 540,
+//     deliveryTime: '10–20 min',
+//     distance: '0.5 km',
+//     coverBg: '#E3F2FD',
+//     icon: 'medkit',
+//     iconColor: '#1565C0',
+//     tag: 'Open 24×7',
+//     tagColor: '#1565C0',
+//   },
+//   {
+//     id: '4',
+//     name: 'TechHub Local',
+//     category: 'Electronics',
+//     rating: 4.5,
+//     reviewCount: 320,
+//     deliveryTime: '30–45 min',
+//     distance: '2.1 km',
+//     coverBg: '#F3E5F5',
+//     icon: 'hardware-chip',
+//     iconColor: '#6A1B9A',
+//     tag: null,
+//     tagColor: null,
+//   },
+//   {
+//     id: '5',
+//     name: 'Style Street',
+//     category: 'Fashion',
+//     rating: 4.4,
+//     reviewCount: 628,
+//     deliveryTime: '25–35 min',
+//     distance: '1.7 km',
+//     coverBg: '#FCE4EC',
+//     icon: 'shirt',
+//     iconColor: '#AD1457',
+//     tag: 'Trending',
+//     tagColor: '#AD1457',
+//   },
+//   {
+//     id: '6',
+//     name: 'Daily Picks',
+//     category: 'Grocery',
+//     rating: 4.9,
+//     reviewCount: 2100,
+//     deliveryTime: '12–20 min',
+//     distance: '0.3 km',
+//     coverBg: '#E0F7FA',
+//     icon: 'cart',
+//     iconColor: '#00695C',
+//     tag: 'Top Rated',
+//     tagColor: AMBER,
+//   },
+//   {
+//     id: '7',
+//     name: 'PureHerbs',
+//     category: 'Wellness',
+//     rating: 4.6,
+//     reviewCount: 410,
+//     deliveryTime: '18–28 min',
+//     distance: '1.4 km',
+//     coverBg: '#F1F8E9',
+//     icon: 'flower',
+//     iconColor: '#558B2F',
+//     tag: 'Organic',
+//     tagColor: SUCCESS,
+//   },
+//   {
+//     id: '8',
+//     name: 'Pet Paradise',
+//     category: 'Pet Supplies',
+//     rating: 4.8,
+//     reviewCount: 290,
+//     deliveryTime: '30–40 min',
+//     distance: '2.3 km',
+//     coverBg: '#FFF3E0',
+//     icon: 'paw',
+//     iconColor: '#E65100',
+//     tag: 'New',
+//     tagColor: ACCENT,
+//   },
+// ];
 
 // ─── NonServiceableBanner ────────────────────────────────────────────────────────
 
@@ -318,6 +325,27 @@ export default function StoreListingScreen({ navigation }) {
   const insets  = useSafeAreaInsets();
   const scrollY = useRef(new Animated.Value(0)).current;
 
+  // ── Tab bar show/hide on scroll ───────────────────────────────────────────────
+  const { showTabBar, hideTabBar } = useTabBar();
+  const lastScrollY    = useRef(0);
+  const isTabBarHidden = useRef(false);
+
+  const handleScrollDirection = useCallback((y) => {
+    const diff = y - lastScrollY.current;
+    lastScrollY.current = y;
+    if (diff > 8 && !isTabBarHidden.current) {
+      isTabBarHidden.current = true;
+      hideTabBar();
+    } else if (diff < -8 && isTabBarHidden.current) {
+      isTabBarHidden.current = false;
+      showTabBar();
+    }
+  }, [hideTabBar, showTabBar]);
+
+  // ── Cart ──────────────────────────────────────────────────────────────────────
+  const { items } = useCart();
+  const totalCartItems = items.reduce((s, i) => s + i.quantity, 0);
+
   // ── Location / serviceability ─────────────────────────────────────────────────
   const { serviceability, status: locationStatus } = useLocation();
   // Treat as serviceable while still loading (avoids blocking UI unnecessarily)
@@ -389,7 +417,7 @@ export default function StoreListingScreen({ navigation }) {
     fetchStores(1, true);
   }, [fetchStores]);
 
-  const TOTAL_HEADER_H = insets.top + TITLE_BAR_H + EXPAND_H + SEARCH_H - 10;
+  const TOTAL_HEADER_H = insets.top + TITLE_BAR_H + EXPAND_H + (FEATURE_SEARCH ? SEARCH_H : 0);
 
   // ── Animated interpolations (all useNativeDriver: true) ──────────────────────
 
@@ -408,6 +436,27 @@ export default function StoreListingScreen({ navigation }) {
   const titleBorderOpacity = scrollY.interpolate({
     inputRange: [EXPAND_H - 10, EXPAND_H + 10],
     outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
+
+  // Icons (notif + bag) fade out as user scrolls past the expand zone
+  const iconsOpacity = scrollY.interpolate({
+    inputRange: [EXPAND_H * 0.4, EXPAND_H * 0.85],
+    outputRange: [1, 0],
+    extrapolate: 'clamp',
+  });
+
+  // Compact location pill fades in as icons fade out
+  const miniLocOpacity = scrollY.interpolate({
+    inputRange: [EXPAND_H * 0.55, EXPAND_H],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
+
+  // Pill slides in from the right
+  const miniLocTranslateX = scrollY.interpolate({
+    inputRange: [EXPAND_H * 0.55, EXPAND_H],
+    outputRange: [20, 0],
     extrapolate: 'clamp',
   });
 
@@ -525,7 +574,7 @@ export default function StoreListingScreen({ navigation }) {
         ListHeaderComponent={renderListHeader}
         ListEmptyComponent={renderEmpty}
         ListFooterComponent={renderListFooter}
-        contentContainerStyle={[styles.listContent, { paddingTop: TOTAL_HEADER_H }]}
+        contentContainerStyle={[styles.listContent, { paddingTop: TOTAL_HEADER_H-20, paddingBottom: TAB_BAR_H + insets.bottom + (totalCartItems > 0 ? 86 : 24) }]}
         showsVerticalScrollIndicator={false}
         onEndReached={handleEndReached}
         onEndReachedThreshold={0.4}
@@ -533,7 +582,10 @@ export default function StoreListingScreen({ navigation }) {
         onRefresh={handleRefresh}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: true },
+          {
+            useNativeDriver: true,
+            listener: (e) => handleScrollDirection(e.nativeEvent.contentOffset.y),
+          },
         )}
         scrollEventThrottle={16}
       />
@@ -564,20 +616,28 @@ export default function StoreListingScreen({ navigation }) {
           </TouchableOpacity>
         </Animated.View>
 
-        {/* Search bar — always visible, sticks below title bar when collapsed */}
-        <View style={styles.searchOuter}>
-          <Text style={styles.greeting}>What are you looking for today?</Text>
-          <View style={styles.searchBar}>
-            <Ionicons name="search-outline" size={17} color={ACCENT_DIM} />
-            <Text style={styles.searchPlaceholder}>
-              Search for shops or products
-            </Text>
-            <View style={styles.searchMicBtn}>
-              <Ionicons name="mic-outline" size={16} color={ACCENT} />
+        {/* Search bar — feature-flagged; set FEATURE_SEARCH=true to re-enable */}
+        {FEATURE_SEARCH && (
+          <View style={styles.searchOuter}>
+            <Text style={styles.greeting}>What are you looking for today?</Text>
+            <View style={styles.searchBar}>
+              <Ionicons name="search-outline" size={17} color={ACCENT_DIM} />
+              <Text style={styles.searchPlaceholder}>
+                Search for shops or products
+              </Text>
+              <View style={styles.searchMicBtn}>
+                <Ionicons name="mic-outline" size={16} color={ACCENT} />
+              </View>
             </View>
           </View>
-        </View>
+        )}
       </Animated.View>
+
+      {/* ━━━ Cart floating card — sits above bottom tab bar ━━━━━━━━━━━━━━━━━━━ */}
+      <CartFloatingCard
+        bottomInset={TAB_BAR_H + insets.bottom}
+        onPress={() => navigation.navigate('Cart')}
+      />
 
       {/* ━━━ Toast — serviceability / error messages ━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
       <Toast message={toastMsg} onDismiss={() => setToastMsg('')} />
@@ -600,13 +660,53 @@ export default function StoreListingScreen({ navigation }) {
             Aileesa
           </Animated.Text>
           <View style={styles.titleBarActions}>
-            <TouchableOpacity style={styles.iconBtn} activeOpacity={0.7}>
-              <Ionicons name="notifications-outline" size={20} color={TEXT_PRI} />
-              <View style={styles.notifDot} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.iconBtn} activeOpacity={0.7}>
-              <Ionicons name="bag-outline" size={20} color={TEXT_PRI} />
-            </TouchableOpacity>
+            {/* Compact location pill — slides in when expand zone is hidden */}
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.miniLocPill,
+                {
+                  opacity: miniLocOpacity,
+                  transform: [{ translateX: miniLocTranslateX }],
+                },
+              ]}
+            >
+              <Ionicons name="location" size={13} color={ACCENT} />
+              <Text style={styles.miniLocText} numberOfLines={1}>
+                {serviceability?.city ?? 'Locating…'}
+              </Text>
+            </Animated.View>
+
+            {/* Notification + bag icons — fade out when pill appears */}
+            <Animated.View
+              style={[styles.titleBarIconsRow, { opacity: iconsOpacity }]}
+              pointerEvents={/* prevent ghost taps when invisible */ 'box-none'}
+            >
+              <TouchableOpacity style={styles.iconBtn} activeOpacity={0.7}>
+                <Ionicons name="notifications-outline" size={20} color={TEXT_PRI} />
+                <View style={styles.notifDot} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.iconBtn}
+                activeOpacity={0.7}
+                onPress={() => {
+                  if (totalCartItems > 0) {
+                    navigation.navigate('Cart');
+                  } else {
+                    setToastMsg('Your cart is empty');
+                  }
+                }}
+              >
+                <Ionicons name="bag-outline" size={20} color={TEXT_PRI} />
+                {totalCartItems > 0 && (
+                  <View style={styles.cartBadge}>
+                    <Text style={styles.cartBadgeText}>
+                      {totalCartItems > 9 ? '9+' : totalCartItems}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </Animated.View>
           </View>
         </View>
       </Animated.View>
@@ -658,6 +758,27 @@ const styles = StyleSheet.create({
   titleBarActions: {
     flexDirection: 'row',
     gap: 8,
+    alignItems: 'center',
+  },
+  titleBarIconsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  miniLocPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: ACCENT_LIGHT,
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    maxWidth: 140,
+  },
+  miniLocText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: ACCENT,
+    flexShrink: 1,
   },
   iconBtn: {
     width: 38,
@@ -666,6 +787,26 @@ const styles = StyleSheet.create({
     backgroundColor: ACCENT_LIGHT,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  cartBadge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#FF3B30',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+    borderWidth: 1.5,
+    borderColor: ACCENT_LIGHT,
+  },
+  cartBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: WHITE,
+    lineHeight: 12,
   },
   notifDot: {
     position: 'absolute',
@@ -691,11 +832,12 @@ const styles = StyleSheet.create({
 
   // Expand zone
   expandZone: {
-    // height: EXPAND_H-48,
+    height: EXPAND_H-48,
     paddingHorizontal: 20,
-    marginTop: 14,
+    marginTop: 12,
+    marginBottom: 12,
     justifyContent: 'center',
-    gap: 4,
+    gap: 5,
   },
   locationRow: {
     flexDirection: 'row',
@@ -722,7 +864,7 @@ const styles = StyleSheet.create({
 
   // Search bar (always visible)
   searchOuter: {
-    height: SEARCH_H+20,
+    height: SEARCH_H,
     backgroundColor: WHITE,
     paddingHorizontal: 16,
     paddingVertical: 10,

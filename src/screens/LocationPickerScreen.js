@@ -28,6 +28,8 @@ import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocation } from '../context/LocationContext';
+import { useFocusEffect } from '@react-navigation/native';
+import { useTabBar } from '../context/TabBarContext';
 import { saveAddress } from '../api/addressApi';
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
@@ -67,6 +69,13 @@ const DEFAULT_REGION = {
 export default function LocationPickerScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { coords } = useLocation();
+
+  // ── Hide bottom tab bar while on this screen ──────────────────────────────
+  const { hideTabBar, showTabBar } = useTabBar();
+  useFocusEffect(useCallback(() => {
+    hideTabBar();
+    return () => showTabBar();
+  }, [hideTabBar, showTabBar]));
 
   // ── Map region ───────────────────────────────────────────────────────────────
   const [region, setRegion] = useState(() => ({

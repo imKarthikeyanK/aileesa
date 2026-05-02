@@ -1,11 +1,12 @@
 import React from 'react';
-import { View, Text, StyleSheet, Platform } from 'react-native';
+import { Animated, View, Text, StyleSheet, Platform } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 
 import { theme } from '../theme/theme';
+import { TabBarProvider, useTabBar, TAB_BAR_H } from '../context/TabBarContext';
 import StoreListingScreen from '../screens/market/StoreListingScreen';
 import StoreDetailScreen from '../screens/market/StoreDetailScreen';
 import CartScreen from '../screens/market/CartScreen';
@@ -92,45 +93,58 @@ function TabLabel({ label, focused }) {
 
 // ─── Root Navigation ────────────────────────────────────────────────────────────
 
+function TabNavigator() {
+  const { tabBarY } = useTabBar();
+
+  return (
+    <Tab.Navigator
+      screenOptions={({ route }) => {
+        const config = TAB_CONFIG[route.name];
+        return {
+          headerShown: false,
+
+          // Icon
+          tabBarIcon: ({ focused, size }) => {
+            const iconName = focused ? config.icon : config.iconOutline;
+            const color = focused
+              ? theme.colors.tabActive
+              : theme.colors.tabInactive;
+            return (
+              <View style={styles.iconWrapper}>
+                <Ionicons name={iconName} size={size - 2} color={color} />
+                {focused && <View style={styles.activeDot} />}
+              </View>
+            );
+          },
+
+          // Label
+          tabBarLabel: ({ focused }) => (
+            <TabLabel label={config.label} focused={focused} />
+          ),
+
+          // Tab bar style — animated translateY drives hide/show
+          tabBarStyle: [
+            styles.tabBar,
+            { transform: [{ translateY: tabBarY }] },
+          ],
+          tabBarItemStyle: styles.tabItem,
+        };
+      }}
+    >
+      <Tab.Screen name="Market"   component={MarketNavigator} />
+      <Tab.Screen name="Explore"  component={ExploreScreen} />
+      <Tab.Screen name="You"      component={YouScreen} />
+    </Tab.Navigator>
+  );
+}
+
 export default function Navigation() {
   return (
-    <NavigationContainer>
-      <Tab.Navigator
-        screenOptions={({ route }) => {
-          const config = TAB_CONFIG[route.name];
-          return {
-            headerShown: false,
-
-            // Icon
-            tabBarIcon: ({ focused, size }) => {
-              const iconName = focused ? config.icon : config.iconOutline;
-              const color = focused
-                ? theme.colors.tabActive
-                : theme.colors.tabInactive;
-              return (
-                <View style={styles.iconWrapper}>
-                  <Ionicons name={iconName} size={size - 2} color={color} />
-                  {focused && <View style={styles.activeDot} />}
-                </View>
-              );
-            },
-
-            // Label
-            tabBarLabel: ({ focused }) => (
-              <TabLabel label={config.label} focused={focused} />
-            ),
-
-            // Tab bar style
-            tabBarStyle: styles.tabBar,
-            tabBarItemStyle: styles.tabItem,
-          };
-        }}
-      >
-        <Tab.Screen name="Market" component={MarketNavigator} />
-        <Tab.Screen name="Explore" component={ExploreScreen} />
-        <Tab.Screen name="You" component={YouScreen} />
-      </Tab.Navigator>
-    </NavigationContainer>
+    <TabBarProvider>
+      <NavigationContainer>
+        <TabNavigator />
+      </NavigationContainer>
+    </TabBarProvider>
   );
 }
 
@@ -138,6 +152,7 @@ export default function Navigation() {
 
 const styles = StyleSheet.create({
   tabBar: {
+    position: 'absolute',
     backgroundColor: theme.colors.tabBar,
     borderTopWidth: 1,
     borderTopColor: theme.colors.border,

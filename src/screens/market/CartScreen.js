@@ -10,9 +10,12 @@
  *   └─ Sticky CTA [Place Order  ₹XXX] ──────────────────┘
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
   ActivityIndicator,
+  Animated,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -23,6 +26,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useCart } from '../../context/CartContext';
+import { useTabBar } from '../../context/TabBarContext';
 
 // ─── Design Tokens ─────────────────────────────────────────────────────────────
 
@@ -189,6 +193,34 @@ export default function CartScreen({ navigation }) {
   const [placing, setPlacing] = useState(false);
   const [placed,  setPlaced]  = useState(false);
 
+  // ── Hide bottom tab bar while on this screen ──────────────────────────────
+  const { hideTabBar, showTabBar } = useTabBar();
+  useFocusEffect(useCallback(() => {
+    hideTabBar();
+    return () => showTabBar();
+  }, [hideTabBar, showTabBar]));
+
+  // ── Pulse animation for Place Order CTA ───────────────────────────────────
+  const ctaPulse = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(ctaPulse, {
+          toValue: 1.018,
+          duration: 850,
+          useNativeDriver: true,
+        }),
+        Animated.timing(ctaPulse, {
+          toValue: 1,
+          duration: 700,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, []);
+
   // Group items by store
   const storeGroups = useMemo(() => {
     const map = {};
@@ -320,24 +352,33 @@ export default function CartScreen({ navigation }) {
 
       {/* ── Sticky CTA ───────────────────────────────────────────────────── */}
       <View style={[styles.ctaContainer, { paddingBottom: insets.bottom + 12 }]}>
+        <Animated.View style={{ transform: [{ scale: ctaPulse }] }}>
         <TouchableOpacity
           style={[styles.placeOrderBtn, placing && styles.placeOrderBtnBusy]}
           onPress={handlePlaceOrder}
           disabled={placing}
-          activeOpacity={0.9}
+          activeOpacity={0.88}
         >
-          {placing ? (
-            <ActivityIndicator color={WHITE} size="small" />
-          ) : (
-            <>
-              <Text style={styles.placeOrderLabel}>Place Order</Text>
-              <View style={styles.placeOrderAmountBox}>
-                <Text style={styles.placeOrderAmount}>₹{grandTotal}</Text>
-                <Ionicons name="arrow-forward" size={16} color={WHITE} style={{ marginLeft: 4 }} />
-              </View>
-            </>
-          )}
+          <LinearGradient
+            colors={['#6200EE', '#9C4DCC']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.placeOrderGradient}
+          >
+            {placing ? (
+              <ActivityIndicator color={WHITE} size="small" />
+            ) : (
+              <>
+                <Text style={styles.placeOrderLabel}>Place Order</Text>
+                <View style={styles.placeOrderAmountBox}>
+                  <Text style={styles.placeOrderAmount}>₹{grandTotal}</Text>
+                  <Ionicons name="arrow-forward" size={16} color={WHITE} style={{ marginLeft: 4 }} />
+                </View>
+              </>
+            )}
+          </LinearGradient>
         </TouchableOpacity>
+        </Animated.View>
       </View>
     </View>
   );
@@ -638,9 +679,12 @@ const styles = StyleSheet.create({
     borderTopColor: BORDER,
   },
   placeOrderBtn: {
-    backgroundColor: NAVY,
     borderRadius: 14,
+    overflow: 'hidden',
     height: 58,
+  },
+  placeOrderGradient: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -648,7 +692,6 @@ const styles = StyleSheet.create({
   },
   placeOrderBtnBusy: {
     opacity: 0.75,
-    justifyContent: 'center',
   },
   placeOrderLabel: {
     color: WHITE,

@@ -18,6 +18,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   ActivityIndicator,
   Animated,
@@ -37,6 +38,7 @@ import { getInventories }  from '../../api/inventoryApi';
 import { useCart }          from '../../context/CartContext';
 import CartFloatingCard     from '../../components/CartFloatingCard';
 import Toast                from '../../components/Toast';
+import { useTabBar }        from '../../context/TabBarContext';
 
 const { width: SW } = Dimensions.get('window');
 
@@ -237,6 +239,13 @@ export default function StoreDetailScreen({ route, navigation }) {
   const scrollY    = useRef(new Animated.Value(0)).current;
   const scrollRef  = useRef(null);
   const sectionOffsets = useRef({});
+
+  // ── Hide bottom tab bar while on this screen ──────────────────────────────
+  const { hideTabBar, showTabBar } = useTabBar();
+  useFocusEffect(useCallback(() => {
+    hideTabBar();
+    return () => showTabBar();
+  }, [hideTabBar, showTabBar]));
 
   const [activeSection, setActiveSection] = useState(0);
   const [toastMsg, setToastMsg] = useState('');
