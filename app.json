@@ -33,7 +33,14 @@
       "bundler": "metro"
     },
     "plugins": [
-      "expo-font"
+      "expo-font",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow Aileesa to use your location to find stores near you.",
+          "locationWhenInUsePermission": "Allow Aileesa to use your location to find stores near you."
+        }
+      ]
     ],
     "extra": {
       "eas": {

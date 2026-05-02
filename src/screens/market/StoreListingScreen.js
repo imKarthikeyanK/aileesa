@@ -33,6 +33,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { getStores } from '../../api/storeApi';
+import { useLocation } from '../../context/LocationContext';
+import Toast from '../../components/Toast';
 
 const { width: SW } = Dimensions.get('window');
 
@@ -186,6 +188,24 @@ const _UNUSED_STORES = [
   },
 ];
 
+// ─── NonServiceableBanner ────────────────────────────────────────────────────────
+
+function NonServiceableBanner() {
+  return (
+    <View style={styles.nsvcBanner}>
+      <View style={styles.nsvcIconWrap}>
+        <Ionicons name="location-off-outline" size={22} color="#92400E" />
+      </View>
+      <View style={styles.nsvcTextBlock}>
+        <Text style={styles.nsvcTitle}>Service unavailable in your area</Text>
+        <Text style={styles.nsvcSubtitle}>
+          We’re expanding rapidly and will be available in your location very soon.
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 // ─── CategoryChip ──────────────────────────────────────────────────────────────
 
 function CategoryChip({ item, selected, onPress }) {
@@ -298,6 +318,13 @@ export default function StoreListingScreen({ navigation }) {
   const insets  = useSafeAreaInsets();
   const scrollY = useRef(new Animated.Value(0)).current;
 
+  // ── Location / serviceability ─────────────────────────────────────────────────
+  const { serviceability, status: locationStatus } = useLocation();
+  // Treat as serviceable while still loading (avoids blocking UI unnecessarily)
+  const isServiceable =
+    locationStatus !== 'done' || serviceability?.serviceable !== false;
+  const [toastMsg, setToastMsg] = useState('');
+
   // ── Category filter ───────────────────────────────────────────────────────────
   const [category, setCategory] = useState('all');
 
@@ -394,6 +421,8 @@ export default function StoreListingScreen({ navigation }) {
 
   const renderListHeader = () => (
     <View>
+      {/* Non-serviceable banner — shown when serviceability check is done and area is unsupported */}
+      {!isServiceable && locationStatus === 'done' && <NonServiceableBanner />}
       <FlatList
         horizontal
         data={CATEGORIES}
@@ -482,7 +511,15 @@ export default function StoreListingScreen({ navigation }) {
         renderItem={({ item }) => (
           <StoreCard
             store={item}
-            onPress={() => navigation.navigate('StoreDetail', { store: item })}
+            onPress={() => {
+              if (!isServiceable) {
+                setToastMsg(
+                  "We\u2019re not in your area yet \u2014 we\u2019re expanding rapidly and will be available in your location very soon.",
+                );
+              } else {
+                navigation.navigate('StoreDetail', { store: item });
+              }
+            }}
           />
         )}
         ListHeaderComponent={renderListHeader}
@@ -537,6 +574,9 @@ export default function StoreListingScreen({ navigation }) {
           </View>
         </View>
       </Animated.View>
+
+      {/* ━━━ Toast — serviceability / error messages ━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+      <Toast message={toastMsg} onDismiss={() => setToastMsg('')} />
 
       {/* ━━━ [3] Sticky title bar — rendered last, always on top ━━━━━━━━━━━━━━ */}
       <Animated.View
@@ -1007,5 +1047,44 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: ACCENT,
+  },
+
+  // ── Non-serviceable banner ───────────────────────────────────────────────────
+  nsvcBanner: {
+    flexDirection:    'row',
+    alignItems:       'center',
+    marginHorizontal: 16,
+    marginTop:        14,
+    marginBottom:     4,
+    backgroundColor:  '#FFFBEB',
+    borderRadius:     14,
+    padding:          14,
+    gap:              12,
+    borderWidth:      1.5,
+    borderColor:      '#FDE68A',
+  },
+  nsvcIconWrap: {
+    width:            42,
+    height:           42,
+    borderRadius:     12,
+    backgroundColor:  '#FEF3C7',
+    alignItems:       'center',
+    justifyContent:   'center',
+    flexShrink:       0,
+  },
+  nsvcTextBlock: {
+    flex: 1,
+  },
+  nsvcTitle: {
+    fontSize:     14,
+    fontWeight:   '700',
+    color:        '#78350F',
+    marginBottom: 2,
+  },
+  nsvcSubtitle: {
+    fontSize:   12,
+    color:      '#92400E',
+    lineHeight: 17,
+    fontWeight: '500',
   },
 });
