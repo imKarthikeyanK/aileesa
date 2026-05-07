@@ -57,5 +57,6 @@
   "system_id": "",
   "transaction_source": "",
   "transaction_source_v2": null,
-  "utm_info": null
+  "utm_info": null,
+  "dummy": null
 }
