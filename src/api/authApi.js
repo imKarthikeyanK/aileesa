@@ -7,10 +7,10 @@
  * To go live, change ACTIVE_PROVIDER to 'real' and fill in RealProvider.
  *
  * CONTRACT — both providers must implement:
- *   sendOtp(phone)               → { requestId, expiresInSec, _devOtp? }
- *   verifyOtp(requestId, otp)    → { accessToken, refreshToken, expiresInSec, user }
- *   refreshAccessToken(token)    → { accessToken, expiresInSec, user? }
- *   revokeSession(refreshToken)  → void
+ *   sendOtp(phone)                              → { requestId, expiresInSec, _devOtp? }
+ *   verifyOtp(requestId, otp)                   → { accessToken, refreshToken, expiresInSec, user }
+ *   refreshAccessToken(token)                   → { accessToken, refreshToken?, expiresInSec, user? }
+ *   revokeSession(refreshToken, { accessToken? }) → void
  *
  * OTP FORMAT: 6-char alphanumeric — 1 letter + 4 digits + 1 letter (e.g. "A3456B")
  * TOKENS:     Signed by backend in production; mock uses a simple encoded payload.
@@ -60,6 +60,22 @@ function decodeToken(token) {
     return JSON.parse(decodeURIComponent(parts[1]));
   } catch {
     return null;
+  }
+}
+
+/**
+ * Extracts the remaining lifetime (seconds) from a real JWT's `exp` claim.
+ * Falls back to ACCESS_TTL if the token can't be decoded (e.g. opaque tokens).
+ * Real JWTs use standard Unix-second timestamps; mock tokens are not JWTs.
+ */
+function _jwtExpiry(token) {
+  try {
+    const b64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const payload = JSON.parse(atob(b64));
+    if (!payload?.exp) return ACCESS_TTL;
+    return Math.max(1, payload.exp - Math.floor(Date.now() / 1000));
+  } catch {
+    return ACCESS_TTL;
   }
 }
 
@@ -180,39 +196,96 @@ const MockProvider = {
 };
 
 // ─── Real Provider (production) ───────────────────────────────────────────────
-// Fill in the BASE_URL and implement each method to call your backend.
-const RealProvider = {
-  BASE_URL: 'https://api.aileesa.com/v1/auth',
+import { getHeaders } from './requestHeaders';
+import { BASE_URL as _BASE_URL } from './env';
 
-  async _post(path, body) {
+const RealProvider = {
+  BASE_URL: `${_BASE_URL}/auth`,
+
+  /** POST helper — injects all x-oz-* headers plus optional Bearer token. */
+  async _post(path, body, { accessToken } = {}) {
     const res = await fetch(`${this.BASE_URL}${path}`, {
       method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getHeaders({ accessToken }),
       body:    JSON.stringify(body),
     });
     const data = await res.json();
-    if (!res.ok) throw authError(data.code ?? 'NETWORK_ERROR', data.message ?? 'An error occurred.');
+    // Real API returns { error_code, message } on failure
+    if (!res.ok) throw authError(data.error_code ?? data.code ?? 'NETWORK_ERROR', data.message ?? 'An error occurred.');
     return data;
   },
 
+  /** PATCH helper — for profile / settings endpoints. */
+  async _patch(path, body, { accessToken } = {}) {
+    const res = await fetch(`${this.BASE_URL}${path}`, {
+      method:  'PATCH',
+      headers: getHeaders({ accessToken }),
+      body:    JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) throw authError(data.error_code ?? data.code ?? 'NETWORK_ERROR', data.message ?? 'An error occurred.');
+    return data;
+  },
+
+  /**
+   * POST /otp/trigger — send OTP via WhatsApp.
+   * Real API does not return a requestId; we echo the phone as the requestId
+   * so verifyOtp can pass it back without any change to AuthContext.
+   */
   async sendOtp(phone) {
-    return this._post('/otp/send', { phone });
+    const { data } = await this._post('/otp/trigger', { phone });
+    return {
+      requestId:    phone,
+      expiresInSec: data.expires_in ?? 300,
+    };
   },
 
+  /**
+   * POST /otp/verify — validate OTP and exchange for tokens.
+   * requestId is the phone (echoed from sendOtp above).
+   */
   async verifyOtp(requestId, otp) {
-    return this._post('/otp/verify', { requestId, otp });
+    const { data } = await this._post('/otp/verify', { phone: requestId, otp });
+    const { access_token, refresh_token, user } = data;
+    return {
+      accessToken:  access_token,
+      refreshToken: refresh_token,
+      expiresInSec: _jwtExpiry(access_token),
+      user,
+    };
   },
 
+  /**
+   * POST /token/refresh — exchange refresh token for a fresh access token.
+   * Handles token rotation: if the backend issues a new refresh token it is
+   * returned so AuthContext can persist it.
+   */
   async refreshAccessToken(refreshToken) {
-    return this._post('/token/refresh', { refreshToken });
+    const { data } = await this._post('/token/refresh', { refresh_token: refreshToken });
+    const { access_token, refresh_token: newRefresh } = data;
+    return {
+      accessToken:  access_token,
+      expiresInSec: _jwtExpiry(access_token),
+      // Only include refreshToken when the backend rotated it
+      ...(newRefresh && newRefresh !== refreshToken ? { refreshToken: newRefresh } : {}),
+    };
   },
 
-  async revokeSession(refreshToken) {
-    return this._post('/token/revoke', { refreshToken });
+  /**
+   * POST /token/revoke — invalidate the session server-side.
+   * Real API requires Authorization: Bearer <accessToken> with no body.
+   */
+  async revokeSession(_refreshToken, { accessToken } = {}) {
+    if (!accessToken) return; // nothing to revoke without a valid access token
+    await fetch(`${this.BASE_URL}/token/revoke`, {
+      method:  'POST',
+      headers: getHeaders({ accessToken }),
+    });
+    // Fire-and-forget — AuthContext clears the local session regardless.
   },
 
-  async updateUserName(phone, name) {
-    // TODO: PATCH /user/profile  { name }
+  async updateUserName(phone, name, { accessToken } = {}) {
+    return this._patch('/user/profile', { name }, { accessToken });
   },
 };
 

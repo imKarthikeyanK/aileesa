@@ -9,6 +9,23 @@
  *       All other coordinates → not serviceable.
  */
 
+import { getHeaders } from './requestHeaders';
+import { BASE_URL } from './env';
+
+// ─── Real API helpers ─────────────────────────────────────────────────────────
+
+async function _post(path, body) {
+  const res = await fetch(`${BASE_URL}${path}`, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message ?? 'Request failed');
+  return data;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 const DELAY_MS = 1400;
 
 // ─── Serviceable Metro Zones ───────────────────────────────────────────────────

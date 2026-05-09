@@ -38,6 +38,7 @@ import React, {
   useState,
 } from 'react';
 import { AuthAPI } from '../api/authApi';
+import { setAuthState } from '../api/requestHeaders';
 
 // ─── In-memory token storage (swap this object to persist sessions) ───────────
 const _mem = {};
@@ -62,6 +63,11 @@ export function AuthProvider({ children }) {
   const refreshTimerRef                 = useRef(null);
   const refreshTokenRef                 = useRef(null); // in-memory fast path
 
+  // ── Keep request headers in sync with auth state ──────────────────────────
+  useEffect(() => {
+    setAuthState({ uid: user?.id ?? null, loggedIn: !!user });
+  }, [user]);
+
   // ── Schedule proactive token refresh ──────────────────────────────────────
   const scheduleRefresh = useCallback((expiresInSec) => {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
@@ -72,10 +78,18 @@ export function AuthProvider({ children }) {
         const rt = refreshTokenRef.current ?? await TokenStorage.get(KEYS.REFRESH);
         if (!rt) return;
 
-        const { accessToken, expiresInSec: nextExpiry, user: freshUser } =
+        const { accessToken, refreshToken: newRt, expiresInSec: nextExpiry, user: freshUser } =
           await AuthAPI.refreshAccessToken(rt);
 
-        await TokenStorage.set(KEYS.ACCESS, accessToken);
+        const writes = [TokenStorage.set(KEYS.ACCESS, accessToken)];
+
+        // Persist rotated refresh token when the backend issues a new one
+        if (newRt) {
+          refreshTokenRef.current = newRt;
+          writes.push(TokenStorage.set(KEYS.REFRESH, newRt));
+        }
+
+        await Promise.all(writes);
 
         if (freshUser) {
           setUser(freshUser);
@@ -116,10 +130,18 @@ export function AuthProvider({ children }) {
         refreshTokenRef.current = rt;
 
         // Validate by refreshing — this also gives us a fresh access token
-        const { accessToken, expiresInSec, user: freshUser } =
+        const { accessToken, refreshToken: newRt, expiresInSec, user: freshUser } =
           await AuthAPI.refreshAccessToken(rt);
 
-        await TokenStorage.set(KEYS.ACCESS, accessToken);
+        const writes = [TokenStorage.set(KEYS.ACCESS, accessToken)];
+
+        // Persist rotated refresh token when the backend issues a new one
+        if (newRt) {
+          refreshTokenRef.current = newRt;
+          writes.push(TokenStorage.set(KEYS.REFRESH, newRt));
+        }
+
+        await Promise.all(writes);
 
         const resolvedUser = freshUser ?? (rawUser ? JSON.parse(rawUser) : null);
         if (resolvedUser) {
@@ -177,7 +199,8 @@ export function AuthProvider({ children }) {
   const logout = useCallback(async () => {
     try {
       const rt = refreshTokenRef.current ?? await TokenStorage.get(KEYS.REFRESH);
-      if (rt) await AuthAPI.revokeSession(rt);
+      const at = await TokenStorage.get(KEYS.ACCESS);
+      if (rt) await AuthAPI.revokeSession(rt, { accessToken: at });
     } catch {
       // Fire-and-forget — still clear locally even if backend call fails
     } finally {

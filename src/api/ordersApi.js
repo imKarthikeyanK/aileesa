@@ -5,6 +5,29 @@
  * fetch/axios calls without touching any screen code.
  */
 
+import { getHeaders } from './requestHeaders';
+import { BASE_URL } from './env';
+
+// ─── Real API helpers ─────────────────────────────────────────────────────────
+
+async function _get(path, { accessToken } = {}) {
+  const res = await fetch(`${BASE_URL}${path}`, { headers: getHeaders({ accessToken }) });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message ?? 'Request failed');
+  return data;
+}
+
+async function _post(path, body, { accessToken } = {}) {
+  const res = await fetch(`${BASE_URL}${path}`, {
+    method: 'POST',
+    headers: getHeaders({ accessToken }),
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message ?? 'Request failed');
+  return data;
+}
+
 // ─── Mock in-memory store ──────────────────────────────────────────────────────
 // Pre-seeded with some history so the UI is non-empty from the start.
 

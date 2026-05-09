@@ -6,7 +6,19 @@
  */
 
 import { MOCK_INVENTORIES } from './mockData';
+import { getHeaders } from './requestHeaders';
+import { BASE_URL } from './env';
 
+// ─── Real API helpers ─────────────────────────────────────────────────────────
+
+async function _get(path) {
+  const res = await fetch(`${BASE_URL}${path}`, { headers: getHeaders() });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message ?? 'Request failed');
+  return data;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 const SIMULATED_DELAY_MS = 600;
 const SECTIONS_PER_PAGE = 2;
 
