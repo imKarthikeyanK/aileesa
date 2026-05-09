@@ -12,3 +12,6 @@ npm-debug.*
 
 build*
 
+# Internal docs
+docs/
+

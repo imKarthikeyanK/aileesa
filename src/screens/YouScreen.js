@@ -197,7 +197,10 @@ export default function YouScreen({ navigation }) {
           {isAuthenticated ? (
             <>
               <View style={styles.avatarCircle}>
-                <Text style={styles.avatarText}>{initials || '?'}</Text>
+                {initials
+                  ? <Text style={styles.avatarText}>{initials}</Text>
+                  : <Ionicons name="person" size={26} color={ACCENT} />
+                }
               </View>
               <View style={styles.profileInfo}>
                 <Text style={styles.profileName}>{user.name || 'User'}</Text>
@@ -210,7 +213,7 @@ export default function YouScreen({ navigation }) {
           ) : (
             <>
               <View style={[styles.avatarCircle, styles.avatarGuest]}>
-                <Ionicons name="person-outline" size={26} color={TEXT_MUTED} />
+                <Ionicons name="person" size={26} color={TEXT_MUTED} />
               </View>
               <View style={styles.profileInfo}>
                 <Text style={styles.profileName}>Guest User</Text>
