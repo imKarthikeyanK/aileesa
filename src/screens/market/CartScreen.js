@@ -42,9 +42,11 @@ const BORDER  = '#EDECF5';
 const SUCCESS = '#10B981';
 const AMBER   = '#FBBF24';
 
-const DELIVERY_FEE  = 30;
-const PLATFORM_FEE  = 5;
-const GST_RATE      = 0.05;
+const DELIVERY_FEE         = 29;   // flat fee when subtotal is between MOV and free-delivery threshold
+const FREE_DELIVERY_ABOVE  = 199;  // free delivery at/above this subtotal
+const MIN_ORDER_VALUE      = 149;  // orders below this cannot be placed
+const PLATFORM_FEE         = 5;
+const GST_RATE             = 0.05;
 
 // ─── CartItemRow ───────────────────────────────────────────────────────────────
 
@@ -233,13 +235,19 @@ export default function CartScreen({ navigation }) {
     return Object.values(map);
   }, [items]);
 
-  const subtotal  = items.reduce((s, i) => s + i.price * i.quantity, 0);
-  const hasFee    = subtotal > 0;
-  const delivery  = hasFee ? DELIVERY_FEE : 0;
-  const platform  = hasFee ? PLATFORM_FEE : 0;
+  const subtotal        = items.reduce((s, i) => s + i.price * i.quantity, 0);
+  const hasFee          = subtotal > 0;
+  const belowMinimum    = subtotal < MIN_ORDER_VALUE;
+  const freeDelivery    = subtotal >= FREE_DELIVERY_ABOVE;
+  const delivery        = hasFee ? (freeDelivery ? 0 : DELIVERY_FEE) : 0;
+  const platform        = hasFee ? PLATFORM_FEE : 0;
   // GST handling TBD — not shown in invoice for now
-  // const taxes  = Math.round(subtotal * GST_RATE);
-  const grandTotal = subtotal + delivery + platform;
+  // const taxes        = Math.round(subtotal * GST_RATE);
+  const grandTotal      = subtotal + delivery + platform;
+
+  // Progress towards free delivery (only relevant when above MOV and below threshold)
+  const toFreeDelivery  = Math.max(0, FREE_DELIVERY_ABOVE - subtotal);
+  const toMinimum       = Math.max(0, MIN_ORDER_VALUE - subtotal);
 
   const handlePlaceOrder = async () => {
     setPlacing(true);
@@ -267,6 +275,17 @@ export default function CartScreen({ navigation }) {
         <View style={{ width: 40 }} />
       </View>
 
+      {/* ── Free delivery promo strip ─────────────────────────────────────── */}
+      <View style={styles.promoStrip}>
+        <Ionicons name="bicycle-outline" size={13} color={SUCCESS} />
+        <Text style={styles.promoStripText}>
+          FREE delivery on orders above{' '}
+          <Text style={styles.promoStripBold}>₹{FREE_DELIVERY_ABOVE}</Text>
+          {'  ·  '}
+          <Text style={styles.promoStripMuted}>Min. order ₹{MIN_ORDER_VALUE}</Text>
+        </Text>
+      </View>
+
       {/* ── Scrollable body ───────────────────────────────────────────────── */}
       <ScrollView
         style={styles.scroll}
@@ -282,9 +301,11 @@ export default function CartScreen({ navigation }) {
                 <Ionicons name="storefront-outline" size={16} color={ACCENT} />
                 <Text style={styles.storeName}>{group.storeName}</Text>
               </View>
-              <View style={styles.deliveryChip}>
-                <Ionicons name="bicycle-outline" size={12} color={SUCCESS} />
-                <Text style={styles.deliveryChipText}>Free delivery</Text>
+              <View style={[styles.deliveryChip, !freeDelivery && styles.deliveryChipPaid]}>
+                <Ionicons name="bicycle-outline" size={12} color={freeDelivery ? SUCCESS : AMBER} />
+                <Text style={[styles.deliveryChipText, !freeDelivery && styles.deliveryChipTextPaid]}>
+                  {freeDelivery ? 'Free delivery' : `₹${DELIVERY_FEE} delivery`}
+                </Text>
               </View>
             </View>
 
@@ -320,6 +341,59 @@ export default function CartScreen({ navigation }) {
           ) : null;
         })()}
 
+        {/* ── Minimum order / free delivery nudge ────────────────────────── */}
+        {belowMinimum ? (
+          <View style={styles.nudgeCard}>
+            <View style={styles.nudgeRow}>
+              <Ionicons name="alert-circle-outline" size={15} color="#C62828" />
+              <Text style={styles.nudgeTextDanger}>
+                Add items worth{' '}
+                <Text style={styles.nudgeAmount}>₹{toMinimum}</Text>{' '}
+                more to place your order
+              </Text>
+            </View>
+            <View style={styles.progressTrack}>
+              <View
+                style={[
+                  styles.progressFill,
+                  styles.progressFillDanger,
+                  { width: `${Math.min(100, (subtotal / MIN_ORDER_VALUE) * 100)}%` },
+                ]}
+              />
+            </View>
+            <Text style={styles.nudgeSub}>
+              Minimum order value is ₹{MIN_ORDER_VALUE}
+            </Text>
+          </View>
+        ) : !freeDelivery ? (
+          <View style={styles.nudgeCard}>
+            <View style={styles.nudgeRow}>
+              <Ionicons name="bicycle-outline" size={15} color="#B45309" />
+              <Text style={styles.nudgeTextAmber}>
+                Add items worth{' '}
+                <Text style={styles.nudgeAmount}>₹{toFreeDelivery}</Text>{' '}
+                more for free delivery
+              </Text>
+            </View>
+            <View style={styles.progressTrack}>
+              <View
+                style={[
+                  styles.progressFill,
+                  styles.progressFillAmber,
+                  { width: `${Math.min(100, (subtotal / FREE_DELIVERY_ABOVE) * 100)}%` },
+                ]}
+              />
+            </View>
+          </View>
+        ) : (
+          <View style={[styles.nudgeCard, styles.nudgeCardSuccess]}>
+            <View style={styles.nudgeRow}>
+              <Ionicons name="checkmark-circle" size={15} color={SUCCESS} />
+              <Text style={styles.nudgeTextSuccess}>You've unlocked free delivery!</Text>
+            </View>
+          </View>
+        )}
+
         {/* ── Order summary ──────────────────────────────────────────────── */}
         <View style={styles.summaryCard}>
           <Text style={styles.summaryTitle}>Order Summary</Text>
@@ -327,8 +401,8 @@ export default function CartScreen({ navigation }) {
           <SummaryRow label="Item total" value={`₹${subtotal}`} />
           <SummaryRow
             label="Delivery fee"
-            value={delivery === 0 ? 'FREE' : `₹${delivery}`}
-            accent={delivery === 0}
+            value={freeDelivery ? 'FREE' : `₹${delivery}`}
+            accent={freeDelivery}
           />
           <SummaryRow label="Platform fee" value={`₹${platform}`} muted />
           {/* GST breakup hidden — handling TBD; will be added back in a later release */}
@@ -356,9 +430,9 @@ export default function CartScreen({ navigation }) {
       <View style={[styles.ctaContainer, { paddingBottom: insets.bottom + 12 }]}>
         <Animated.View style={{ transform: [{ scale: ctaPulse }] }}>
         <TouchableOpacity
-          style={[styles.placeOrderBtn, placing && styles.placeOrderBtnBusy]}
+          style={[styles.placeOrderBtn, (placing || belowMinimum) && styles.placeOrderBtnBusy]}
           onPress={handlePlaceOrder}
-          disabled={placing}
+          disabled={placing || belowMinimum}
           activeOpacity={0.88}
         >
           <LinearGradient
@@ -456,10 +530,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
+  deliveryChipPaid: {
+    backgroundColor: '#FEF3C7',
+  },
   deliveryChipText: {
     fontSize: 11,
     fontWeight: '600',
     color: SUCCESS,
+  },
+  deliveryChipTextPaid: {
+    color: '#B45309',
   },
 
   // ── Items card ───────────────────────────────────────────────────────────────
@@ -654,6 +734,95 @@ const styles = StyleSheet.create({
     height: StyleSheet.hairlineWidth * 2,
     backgroundColor: BORDER,
     marginVertical: 10,
+  },
+
+  // ── Delivery / minimum order nudge card ──────────────────────────────────────
+  nudgeCard: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    backgroundColor: '#FEF3C7',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 8,
+  },
+  nudgeCardSuccess: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
+  },
+  nudgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  nudgeTextDanger: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#C62828',
+    flex: 1,
+  },
+  nudgeTextAmber: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#B45309',
+    flex: 1,
+  },
+  nudgeTextSuccess: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: SUCCESS,
+    flex: 1,
+  },
+  nudgeAmount: {
+    fontWeight: '800',
+  },
+  nudgeSub: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    fontWeight: '500',
+  },
+  progressTrack: {
+    height: 4,
+    backgroundColor: 'rgba(0,0,0,0.08)',
+    borderRadius: 999,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 999,
+  },
+  progressFillDanger: {
+    backgroundColor: '#EF4444',
+  },
+  progressFillAmber: {
+    backgroundColor: AMBER,
+  },
+
+  // ── Free delivery promo strip ─────────────────────────────────────────────
+  promoStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#F0FDF4',
+    borderBottomWidth: 1,
+    borderBottomColor: '#D1FAE5',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  promoStripText: {
+    fontSize: 12,
+    color: '#166534',
+    fontWeight: '500',
+  },
+  promoStripBold: {
+    fontWeight: '800',
+    color: SUCCESS,
+  },
+  promoStripMuted: {
+    color: TEXT_MUTED,
+    fontWeight: '400',
   },
 
   // ── Note card ────────────────────────────────────────────────────────────────
