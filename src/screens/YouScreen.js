@@ -6,6 +6,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '../context/AuthContext';
+import AuthSheet from '../components/auth/AuthSheet';
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 const BG        = '#F5F6FA';
@@ -95,89 +97,59 @@ function ComingSoonModal({ visible, onClose }) {
   );
 }
 
-// ─── Login bottom sheet ────────────────────────────────────────────────────────
-function LoginSheet({ visible, onClose, onLogin }) {
-  const slideY   = useRef(new Animated.Value(500)).current;
-  const backdrop = useRef(new Animated.Value(0)).current;
-  const [name, setName]   = useState('');
-  const [phone, setPhone] = useState('');
+// ─── Edit name modal ───────────────────────────────────────────────────────────
+function EditNameModal({ visible, currentName, onSave, onClose }) {
+  const [name, setName] = useState(currentName || '');
+  const scale   = useRef(new Animated.Value(0.82)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
+      setName(currentName || '');
       Animated.parallel([
-        Animated.spring(slideY,   { toValue: 0, useNativeDriver: true, damping: 22, stiffness: 220 }),
-        Animated.timing(backdrop, { toValue: 1, duration: 220, useNativeDriver: true }),
+        Animated.spring(scale,   { toValue: 1, useNativeDriver: true, damping: 14, stiffness: 200 }),
+        Animated.timing(opacity, { toValue: 1, duration: 160, useNativeDriver: true }),
       ]).start();
     } else {
-      Animated.parallel([
-        Animated.timing(slideY,   { toValue: 500, duration: 220, useNativeDriver: true }),
-        Animated.timing(backdrop, { toValue: 0,   duration: 200, useNativeDriver: true }),
-      ]).start(() => { setName(''); setPhone(''); });
+      scale.setValue(0.82);
+      opacity.setValue(0);
     }
-  }, [visible]);
-
-  const canSubmit = name.trim().length > 0 && phone.length === 10;
-
-  const handleSubmit = () => {
-    if (!canSubmit) return;
-    onLogin({ name: name.trim(), phone });
-    onClose();
-  };
+  }, [visible, currentName]);
 
   return (
     <Modal transparent visible={visible} onRequestClose={onClose} animationType="none">
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <Animated.View style={[styles.backdrop, { opacity: backdrop }]}>
-          <Pressable style={{ flex: 1 }} onPress={onClose} />
-        </Animated.View>
-        <Animated.View style={[styles.loginSheet, { transform: [{ translateY: slideY }] }]}>
-          <View style={styles.sheetHandle} />
-
-          <Text style={styles.loginTitle}>Welcome to Aileesa</Text>
-          <Text style={styles.loginSub}>Enter your details to continue</Text>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Your name</Text>
+        <Pressable style={styles.backdrop} onPress={onClose}>
+          <Animated.View
+            style={[styles.editNameCard, { transform: [{ scale }], opacity }]}
+            onStartShouldSetResponder={() => true}
+          >
+            <Text style={styles.editNameTitle}>Edit name</Text>
             <TextInput
-              style={styles.input}
-              placeholder="e.g. Karthikeyan"
-              placeholderTextColor={TEXT_MUTED}
+              style={styles.editNameInput}
               value={name}
               onChangeText={setName}
               autoCapitalize="words"
-              returnKeyType="next"
+              autoFocus
+              placeholder="Your name"
+              placeholderTextColor={TEXT_MUTED}
+              returnKeyType="done"
+              onSubmitEditing={() => name.trim() && onSave(name.trim())}
             />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Mobile number</Text>
-            <View style={styles.phoneRow}>
-              <View style={styles.dialCode}>
-                <Text style={styles.dialCodeText}>🇮🇳  +91</Text>
-              </View>
-              <TextInput
-                style={[styles.input, { flex: 1 }]}
-                placeholder="10-digit number"
-                placeholderTextColor={TEXT_MUTED}
-                value={phone}
-                onChangeText={t => setPhone(t.replace(/[^0-9]/g, '').slice(0, 10))}
-                keyboardType="number-pad"
-                returnKeyType="done"
-                maxLength={10}
-              />
+            <View style={styles.editNameActions}>
+              <TouchableOpacity style={styles.editNameCancel} onPress={onClose}>
+                <Text style={styles.editNameCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.editNameSave, !name.trim() && { opacity: 0.42 }]}
+                onPress={() => name.trim() && onSave(name.trim())}
+                disabled={!name.trim()}
+              >
+                <Text style={styles.editNameSaveText}>Save</Text>
+              </TouchableOpacity>
             </View>
-          </View>
-
-          <TouchableOpacity
-            style={[styles.loginBtn, !canSubmit && styles.loginBtnOff]}
-            onPress={handleSubmit}
-            activeOpacity={0.85}
-            disabled={!canSubmit}
-          >
-            <Text style={styles.loginBtnText}>Continue</Text>
-            <Ionicons name="arrow-forward" size={18} color={WHITE} />
-          </TouchableOpacity>
-        </Animated.View>
+          </Animated.View>
+        </Pressable>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -186,17 +158,24 @@ function LoginSheet({ visible, onClose, onLogin }) {
 // ─── Main screen ───────────────────────────────────────────────────────────────
 export default function YouScreen() {
   const insets = useSafeAreaInsets();
-  const [user, setUser]               = useState(null); // { name, phone } | null
-  const [showLogin, setShowLogin]     = useState(false);
-  const [showComing, setShowComing]   = useState(false);
+  const { user, isAuthenticated, logout, updateName } = useAuth();
 
-  const initials = user
+  const [authSheetVisible, setAuthSheetVisible] = useState(false);
+  const [editNameVisible,  setEditNameVisible]  = useState(false);
+  const [showComing,       setShowComing]       = useState(false);
+
+  const initials = user?.name
     ? user.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
     : null;
 
   const requireLogin = (then) => {
-    if (!user) { setShowLogin(true); return; }
+    if (!isAuthenticated) { setAuthSheetVisible(true); return; }
     then?.();
+  };
+
+  const handleSaveName = async (name) => {
+    await updateName(name);
+    setEditNameVisible(false);
   };
 
   return (
@@ -215,16 +194,16 @@ export default function YouScreen() {
       >
         {/* ── Profile card ──────────────────────────────────────────────── */}
         <View style={styles.profileCard}>
-          {user ? (
+          {isAuthenticated ? (
             <>
               <View style={styles.avatarCircle}>
-                <Text style={styles.avatarText}>{initials}</Text>
+                <Text style={styles.avatarText}>{initials || '?'}</Text>
               </View>
               <View style={styles.profileInfo}>
-                <Text style={styles.profileName}>{user.name}</Text>
+                <Text style={styles.profileName}>{user.name || 'User'}</Text>
                 <Text style={styles.profilePhone}>+91 {user.phone}</Text>
               </View>
-              <TouchableOpacity style={styles.editBtn} onPress={() => setShowLogin(true)}>
+              <TouchableOpacity style={styles.editBtn} onPress={() => setEditNameVisible(true)}>
                 <Ionicons name="pencil-outline" size={15} color={ACCENT} />
               </TouchableOpacity>
             </>
@@ -237,7 +216,7 @@ export default function YouScreen() {
                 <Text style={styles.profileName}>Guest User</Text>
                 <Text style={styles.profilePhone}>Not logged in</Text>
               </View>
-              <TouchableOpacity style={styles.loginCta} onPress={() => setShowLogin(true)} activeOpacity={0.85}>
+              <TouchableOpacity style={styles.loginCta} onPress={() => setAuthSheetVisible(true)} activeOpacity={0.85}>
                 <Text style={styles.loginCtaText}>Login</Text>
                 <Ionicons name="arrow-forward" size={14} color={WHITE} />
               </TouchableOpacity>
@@ -251,7 +230,7 @@ export default function YouScreen() {
             icon="bag-check-outline"
             iconColor={ACCENT}
             label="Past Orders"
-            sublabel={user ? 'View your order history' : 'Login to view your orders'}
+            sublabel={isAuthenticated ? 'View your order history' : 'Login to view your orders'}
             onPress={() => requireLogin(() => setShowComing(true))}
             last
           />
@@ -263,7 +242,7 @@ export default function YouScreen() {
             icon="heart-outline"
             iconColor="#E91E8C"
             label="Favourite Stores"
-            sublabel={user ? 'Your saved stores' : 'Login to save stores'}
+            sublabel={isAuthenticated ? 'Your saved stores' : 'Login to save stores'}
             onPress={() => requireLogin(() => setShowComing(true))}
             last
           />
@@ -303,13 +282,13 @@ export default function YouScreen() {
         </Section>
 
         {/* ── Logout ────────────────────────────────────────────────────── */}
-        {user && (
+        {isAuthenticated && (
           <Section>
             <MenuRow
               icon="log-out-outline"
               iconColor={ACCENT}
               label="Logout"
-              onPress={() => setUser(null)}
+              onPress={logout}
               danger
               last
             />
@@ -320,10 +299,15 @@ export default function YouScreen() {
         <Text style={styles.version}>Aileesa v1.0.0  ·  Made with ♥ in India</Text>
       </ScrollView>
 
-      <LoginSheet
-        visible={showLogin}
-        onClose={() => setShowLogin(false)}
-        onLogin={u => setUser(u)}
+      <AuthSheet
+        visible={authSheetVisible}
+        onClose={() => setAuthSheetVisible(false)}
+      />
+      <EditNameModal
+        visible={editNameVisible}
+        currentName={user?.name}
+        onSave={handleSaveName}
+        onClose={() => setEditNameVisible(false)}
       />
       <ComingSoonModal
         visible={showComing}
@@ -494,62 +478,42 @@ const styles = StyleSheet.create({
   },
   comingSoonBtnText: { color: WHITE, fontSize: 14, fontWeight: '700' },
 
-  // ── Login sheet ───────────────────────────────────────────────────────────
-  loginSheet: {
+  // ── Edit name modal ───────────────────────────────────────────────────────
+  editNameCard: {
     backgroundColor: SURFACE,
-    borderTopLeftRadius: 26,
-    borderTopRightRadius: 26,
-    paddingHorizontal: 24,
-    paddingTop: 12,
-    paddingBottom: 40,
-    gap: 16,
+    borderRadius: 20,
+    padding: 24,
+    marginHorizontal: 28,
+    gap: 14,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 10,
   },
-  sheetHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: BORDER,
-    alignSelf: 'center',
-    marginBottom: 8,
-  },
-  loginTitle: { fontSize: 22, fontWeight: '800', color: NAVY, letterSpacing: -0.4 },
-  loginSub:   { fontSize: 13, color: TEXT_SEC, marginTop: -8 },
-
-  inputGroup: { gap: 7 },
-  inputLabel: { fontSize: 12, fontWeight: '600', color: TEXT_SEC },
-  input: {
+  editNameTitle:  { fontSize: 17, fontWeight: '800', color: NAVY, letterSpacing: -0.3 },
+  editNameInput: {
     backgroundColor: BG,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: BORDER,
     paddingHorizontal: 14,
-    paddingVertical: 13,
+    paddingVertical: 12,
     fontSize: 15,
     color: NAVY,
     fontWeight: '500',
   },
-  phoneRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
-  dialCode: {
-    backgroundColor: BG,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: BORDER,
-    paddingHorizontal: 12,
-    paddingVertical: 13,
-  },
-  dialCodeText: { fontSize: 14, fontWeight: '600', color: NAVY },
-
-  loginBtn: {
-    backgroundColor: ACCENT,
-    borderRadius: 14,
-    paddingVertical: 15,
-    flexDirection: 'row',
+  editNameActions:    { flexDirection: 'row', gap: 10 },
+  editNameCancel: {
+    flex: 1, paddingVertical: 12, borderRadius: 12,
+    borderWidth: 1, borderColor: BORDER,
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginTop: 4,
   },
-  loginBtnOff:  { opacity: 0.42 },
-  loginBtnText: { color: WHITE, fontSize: 15, fontWeight: '700' },
+  editNameCancelText: { fontSize: 14, fontWeight: '600', color: TEXT_SEC },
+  editNameSave: {
+    flex: 1, paddingVertical: 12, borderRadius: 12,
+    backgroundColor: NAVY, alignItems: 'center',
+  },
+  editNameSaveText: { fontSize: 14, fontWeight: '700', color: WHITE },
 });
 
