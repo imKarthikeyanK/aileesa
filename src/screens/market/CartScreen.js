@@ -237,8 +237,9 @@ export default function CartScreen({ navigation }) {
   const hasFee    = subtotal > 0;
   const delivery  = hasFee ? DELIVERY_FEE : 0;
   const platform  = hasFee ? PLATFORM_FEE : 0;
-  const taxes     = Math.round(subtotal * GST_RATE);
-  const grandTotal = subtotal + delivery + platform + taxes;
+  // GST handling TBD — not shown in invoice for now
+  // const taxes  = Math.round(subtotal * GST_RATE);
+  const grandTotal = subtotal + delivery + platform;
 
   const handlePlaceOrder = async () => {
     setPlacing(true);
@@ -258,7 +259,7 @@ export default function CartScreen({ navigation }) {
       <StatusBar barStyle="dark-content" backgroundColor={SURFACE} />
 
       {/* ── Header ───────────────────────────────────────────────────────── */}
-      <View style={[styles.header, { paddingTop: insets.top }]}>
+      <View style={[styles.header, { paddingTop: insets.top, height: insets.top + 56 }]}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={20} color={TEXT_PRI} />
         </TouchableOpacity>
@@ -330,7 +331,8 @@ export default function CartScreen({ navigation }) {
             accent={delivery === 0}
           />
           <SummaryRow label="Platform fee" value={`₹${platform}`} muted />
-          <SummaryRow label={`GST (${GST_RATE * 100}%)`} value={`₹${taxes}`} muted />
+          {/* GST breakup hidden — handling TBD; will be added back in a later release */}
+          {/* <SummaryRow label={`GST (${GST_RATE * 100}%)`} value={`₹${taxes}`} muted /> */}
 
           <View style={styles.summaryDivider} />
 

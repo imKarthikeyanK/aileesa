@@ -18,6 +18,7 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   ActivityIndicator,
   Animated,
@@ -58,6 +59,9 @@ const SUCCESS      = '#10B981';
 // ─── Feature Flags ─────────────────────────────────────────────────────────────
 // Set FEATURE_SEARCH = true to re-enable the search bar in v2.
 const FEATURE_SEARCH = false;
+// Set FEATURE_FILTER = true to re-enable category filter chips.
+// For now always show all stores (no filtering).
+const FEATURE_FILTER = false;
 
 // ─── Layout Constants ──────────────────────────────────────────────────────────
 
@@ -330,6 +334,12 @@ export default function StoreListingScreen({ navigation }) {
   const lastScrollY    = useRef(0);
   const isTabBarHidden = useRef(false);
 
+  // Restore tab bar whenever SLP re-gains focus (back from SDS or Cart).
+  useFocusEffect(useCallback(() => {
+    showTabBar();
+    isTabBarHidden.current = false;
+  }, [showTabBar]));
+
   const handleScrollDirection = useCallback((y) => {
     const diff = y - lastScrollY.current;
     lastScrollY.current = y;
@@ -472,20 +482,23 @@ export default function StoreListingScreen({ navigation }) {
     <View>
       {/* Non-serviceable banner — shown when serviceability check is done and area is unsupported */}
       {!isServiceable && locationStatus === 'done' && <NonServiceableBanner />}
-      <FlatList
-        horizontal
-        data={CATEGORIES}
-        keyExtractor={i => i.id}
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.categoryRow}
-        renderItem={({ item }) => (
-          <CategoryChip
-            item={item}
-            selected={category === item.id}
-            onPress={() => setCategory(item.id)}
-          />
-        )}
-      />
+      {/* Category filter chips — hidden via FEATURE_FILTER flag; all stores shown by default */}
+      {FEATURE_FILTER && (
+        <FlatList
+          horizontal
+          data={CATEGORIES}
+          keyExtractor={i => i.id}
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.categoryRow}
+          renderItem={({ item }) => (
+            <CategoryChip
+              item={item}
+              selected={category === item.id}
+              onPress={() => setCategory(item.id)}
+            />
+          )}
+        />
+      )}
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Stores Near You</Text>
         {totalCount > 0 && (

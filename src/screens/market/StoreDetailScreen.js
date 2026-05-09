@@ -241,11 +241,12 @@ export default function StoreDetailScreen({ route, navigation }) {
   const sectionOffsets = useRef({});
 
   // ── Hide bottom tab bar while on this screen ──────────────────────────────
-  const { hideTabBar, showTabBar } = useTabBar();
+  const { hideTabBar } = useTabBar();
   useFocusEffect(useCallback(() => {
     hideTabBar();
-    return () => showTabBar();
-  }, [hideTabBar, showTabBar]));
+    // No cleanup showTabBar() — StoreListingScreen restores it on re-focus
+    // to avoid the animation race that let the tab bar flash over Cart’s CTA.
+  }, [hideTabBar]));
 
   const [activeSection, setActiveSection] = useState(0);
   const [toastMsg, setToastMsg] = useState('');
@@ -367,9 +368,17 @@ export default function StoreDetailScreen({ route, navigation }) {
         <Ionicons name="arrow-back" size={18} color={TEXT_PRI} />
       </TouchableOpacity>
 
-      {/* Floating favourite button */}
+      {/* Floating share button — top-right, above favourite */}
       <TouchableOpacity
         style={[styles.floatBtn, { top: insets.top + 10, right: 16 }]}
+        activeOpacity={0.85}
+      >
+        <Ionicons name="share-social-outline" size={18} color={TEXT_PRI} />
+      </TouchableOpacity>
+
+      {/* Floating favourite button — below share */}
+      <TouchableOpacity
+        style={[styles.floatBtn, { top: insets.top + 60, right: 16 }]}
         activeOpacity={0.85}
       >
         <Ionicons name="heart-outline" size={18} color={TEXT_PRI} />
@@ -466,8 +475,8 @@ export default function StoreDetailScreen({ route, navigation }) {
             </>
           )}
 
-          <View style={styles.infoDivider} />
-
+          {/* Call Store + Share CTA row — commented out; share moved to floating top-right button */}
+          {/* <View style={styles.infoDivider} />
           <View style={styles.ctaRow}>
             <TouchableOpacity style={styles.callBtn} activeOpacity={0.85}>
               <Ionicons name="call-outline" size={16} color={ACCENT} />
@@ -477,7 +486,7 @@ export default function StoreDetailScreen({ route, navigation }) {
               <Ionicons name="share-social-outline" size={16} color={WHITE} />
               <Text style={styles.shareBtnText}>Share</Text>
             </TouchableOpacity>
-          </View>
+          </View> */}
         </View>
 
         {/* Category tab strip */}
