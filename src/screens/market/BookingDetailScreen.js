@@ -1,0 +1,452 @@
+/**
+ * BookingDetailScreen.js — BHL2: single booking detail, payment info,
+ * live tracking timeline, and utility actions (invoice, bill, support).
+ *
+ * Route params: { bookingId: string }
+ */
+
+import React, { useEffect, useState, useCallback } from 'react';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity,
+  ActivityIndicator, StatusBar, Linking, Share,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { OrdersAPI } from '../../api/ordersApi';
+
+// ─── Design tokens ─────────────────────────────────────────────────────────────
+const BG        = '#F5F6FA';
+const SURFACE   = '#FFFFFF';
+const NAVY      = '#16172B';
+const ACCENT    = '#E8445A';
+const SUCCESS   = '#10B981';
+const AMBER     = '#F59E0B';
+const TEXT_PRI  = '#16172B';
+const TEXT_SEC  = '#64748B';
+const TEXT_MUTED = '#94A3B8';
+const BORDER    = '#E4E8F4';
+const WHITE     = '#FFFFFF';
+
+// ─── Status config ─────────────────────────────────────────────────────────────
+const STATUS_CONFIG = {
+  delivered:  { label: 'Delivered',  bg: '#D1FAE5', color: SUCCESS,   icon: 'checkmark-circle' },
+  processing: { label: 'Processing', bg: '#EDE9FE', color: '#7C3AED', icon: 'time' },
+  cancelled:  { label: 'Cancelled',  bg: '#FEE2E2', color: ACCENT,    icon: 'close-circle' },
+};
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function formatDateTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleString('en-IN', {
+    day: 'numeric', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  });
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function SectionCard({ title, children }) {
+  return (
+    <View style={styles.sectionCard}>
+      {title && <Text style={styles.sectionTitle}>{title}</Text>}
+      {children}
+    </View>
+  );
+}
+
+function InfoRow({ label, value, accent, bold }) {
+  return (
+    <View style={styles.infoRow}>
+      <Text style={styles.infoLabel}>{label}</Text>
+      <Text
+        style={[
+          styles.infoValue,
+          accent && { color: ACCENT },
+          bold && { fontWeight: '700', color: NAVY },
+        ]}
+      >
+        {value}
+      </Text>
+    </View>
+  );
+}
+
+function Divider() {
+  return <View style={styles.divider} />;
+}
+
+// ─── Tracking timeline ────────────────────────────────────────────────────────
+function TrackingTimeline({ steps }) {
+  return (
+    <View style={styles.timeline}>
+      {steps.map((step, idx) => {
+        const isLast = idx === steps.length - 1;
+        return (
+          <View key={idx} style={styles.timelineRow}>
+            {/* Left: dot + line */}
+            <View style={styles.timelineLeft}>
+              <View style={[
+                styles.timelineDot,
+                step.done ? styles.timelineDotDone : styles.timelineDotPending,
+              ]}>
+                {step.done && <Ionicons name="checkmark" size={10} color={WHITE} />}
+              </View>
+              {!isLast && (
+                <View style={[
+                  styles.timelineLine,
+                  step.done ? styles.timelineLineDone : styles.timelineLinePending,
+                ]} />
+              )}
+            </View>
+            {/* Right: label + time */}
+            <View style={styles.timelineContent}>
+              <Text style={[styles.timelineLabel, !step.done && styles.timelineLabelPending]}>
+                {step.label}
+              </Text>
+              {step.time ? (
+                <Text style={styles.timelineTime}>{step.time}</Text>
+              ) : null}
+            </View>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+// ─── Utility action button ────────────────────────────────────────────────────
+function ActionBtn({ icon, label, onPress, disabled }) {
+  return (
+    <TouchableOpacity
+      style={[styles.actionBtn, disabled && { opacity: 0.38 }]}
+      onPress={onPress}
+      disabled={disabled}
+      activeOpacity={0.72}
+    >
+      <View style={styles.actionIconWrap}>
+        <Ionicons name={icon} size={20} color={ACCENT} />
+      </View>
+      <Text style={styles.actionLabel}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+// ─── Screen ───────────────────────────────────────────────────────────────────
+export default function BookingDetailScreen({ route, navigation }) {
+  const insets    = useSafeAreaInsets();
+  const { bookingId } = route.params ?? {};
+
+  const [order,   setOrder]   = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState(null);
+
+  const load = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await OrdersAPI.getOrder(bookingId);
+      setOrder(data);
+    } catch (e) {
+      setError('Could not load booking details.');
+    } finally {
+      setLoading(false);
+    }
+  }, [bookingId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleShare = async () => {
+    try {
+      await Share.share({
+        message: `My Aileesa order #${order.id} — ₹${order.grandTotal} from ${order.storeName}.`,
+      });
+    } catch (_) {}
+  };
+
+  // ── Render: loading / error states ─────────────────────────────────────────
+  if (loading) {
+    return (
+      <View style={[styles.root, { paddingTop: insets.top }]}>
+        <StatusBar barStyle="dark-content" backgroundColor={BG} />
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+            <Ionicons name="arrow-back" size={20} color={TEXT_PRI} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Booking Details</Text>
+          <View style={{ width: 40 }} />
+        </View>
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={ACCENT} />
+        </View>
+      </View>
+    );
+  }
+
+  if (error || !order) {
+    return (
+      <View style={[styles.root, { paddingTop: insets.top }]}>
+        <StatusBar barStyle="dark-content" backgroundColor={BG} />
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+            <Ionicons name="arrow-back" size={20} color={TEXT_PRI} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Booking Details</Text>
+          <View style={{ width: 40 }} />
+        </View>
+        <View style={styles.centered}>
+          <Ionicons name="cloud-offline-outline" size={44} color={TEXT_MUTED} />
+          <Text style={styles.errorText}>{error ?? 'Something went wrong.'}</Text>
+          <TouchableOpacity style={styles.retryBtn} onPress={load}>
+            <Text style={styles.retryBtnText}>Try Again</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  const cfg = STATUS_CONFIG[order.status] ?? STATUS_CONFIG.processing;
+
+  // ── Render: main detail ────────────────────────────────────────────────────
+  return (
+    <View style={[styles.root, { paddingTop: insets.top }]}>
+      <StatusBar barStyle="dark-content" backgroundColor={BG} />
+
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+          <Ionicons name="arrow-back" size={20} color={TEXT_PRI} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>#{order.id}</Text>
+        <TouchableOpacity style={styles.backBtn} onPress={handleShare}>
+          <Ionicons name="share-outline" size={20} color={TEXT_PRI} />
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 32, gap: 14 }}
+      >
+        {/* ── Status banner ─────────────────────────────────────────────── */}
+        <View style={[styles.statusBanner, { backgroundColor: cfg.bg }]}>
+          <Ionicons name={cfg.icon} size={22} color={cfg.color} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.statusBannerTitle, { color: cfg.color }]}>{cfg.label}</Text>
+            {order.status === 'delivered' && order.deliveredAt && (
+              <Text style={[styles.statusBannerSub, { color: cfg.color }]}>
+                Delivered on {formatDateTime(order.deliveredAt)}
+              </Text>
+            )}
+            {order.status === 'processing' && (
+              <Text style={[styles.statusBannerSub, { color: cfg.color }]}>
+                Placed on {formatDateTime(order.createdAt)}
+              </Text>
+            )}
+            {order.status === 'cancelled' && (
+              <Text style={[styles.statusBannerSub, { color: cfg.color }]}>
+                Order was cancelled · Refund in 3–5 business days
+              </Text>
+            )}
+          </View>
+        </View>
+
+        {/* ── Tracking ──────────────────────────────────────────────────── */}
+        <SectionCard title="TRACKING">
+          <TrackingTimeline steps={order.tracking} />
+        </SectionCard>
+
+        {/* ── Order items ───────────────────────────────────────────────── */}
+        <SectionCard title="ORDER ITEMS">
+          <Text style={styles.storeName}>{order.storeName}</Text>
+          {order.items.map((item, idx) => (
+            <View key={idx} style={styles.itemRow}>
+              <Text style={styles.itemQty}>{item.qty}×</Text>
+              <Text style={styles.itemName}>{item.name}</Text>
+              <Text style={styles.itemPrice}>₹{item.price * item.qty}</Text>
+            </View>
+          ))}
+          <Divider />
+          <InfoRow label="Subtotal"     value={`₹${order.subtotal}`} />
+          <InfoRow label="Delivery"     value={order.delivery === 0 ? 'FREE' : `₹${order.delivery}`} />
+          <InfoRow label="Platform fee" value={`₹${order.platform}`} />
+          <Divider />
+          <InfoRow label="Total Paid"   value={`₹${order.grandTotal}`} bold />
+        </SectionCard>
+
+        {/* ── Payment info ──────────────────────────────────────────────── */}
+        <SectionCard title="PAYMENT">
+          <InfoRow label="Method" value={order.paymentMethod} />
+          <InfoRow
+            label="Status"
+            value={order.paymentStatus.charAt(0).toUpperCase() + order.paymentStatus.slice(1)}
+            accent={order.paymentStatus === 'refunded'}
+          />
+          <InfoRow label="Booking ID" value={order.id} />
+          <InfoRow label="Order Date"  value={formatDateTime(order.createdAt)} />
+        </SectionCard>
+
+        {/* ── Delivery address ──────────────────────────────────────────── */}
+        <SectionCard title="DELIVERY ADDRESS">
+          <View style={styles.addressRow}>
+            <Ionicons name="location-outline" size={16} color={ACCENT} style={{ marginTop: 2 }} />
+            <Text style={styles.addressText}>{order.address}</Text>
+          </View>
+        </SectionCard>
+
+        {/* ── Utility actions ───────────────────────────────────────────── */}
+        <SectionCard title="ACTIONS">
+          <View style={styles.actionsRow}>
+            <ActionBtn
+              icon="receipt-outline"
+              label="Invoice"
+              onPress={() => {}}
+              disabled={!order.invoiceUrl}
+            />
+            <ActionBtn
+              icon="document-text-outline"
+              label="Bill"
+              onPress={() => {}}
+              disabled={!order.invoiceUrl}
+            />
+            <ActionBtn
+              icon="logo-whatsapp"
+              label="Support"
+              onPress={() => Linking.openURL('https://wa.me/917337731123').catch(() => {})}
+            />
+            <ActionBtn
+              icon="share-outline"
+              label="Share"
+              onPress={handleShare}
+            />
+          </View>
+        </SectionCard>
+      </ScrollView>
+    </View>
+  );
+}
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+const styles = StyleSheet.create({
+  root:   { flex: 1, backgroundColor: BG },
+
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 56,
+    paddingHorizontal: 8,
+    backgroundColor: SURFACE,
+    borderBottomWidth: 1,
+    borderBottomColor: BORDER,
+  },
+  backBtn: {
+    width: 40, height: 40,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  headerTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 15,
+    fontWeight: '700',
+    color: NAVY,
+    letterSpacing: -0.2,
+  },
+
+  centered: {
+    flex: 1, alignItems: 'center', justifyContent: 'center',
+    gap: 10, paddingHorizontal: 32,
+  },
+  errorText: { fontSize: 14, color: TEXT_SEC, textAlign: 'center' },
+  retryBtn: {
+    marginTop: 4, paddingHorizontal: 22, paddingVertical: 10,
+    backgroundColor: ACCENT, borderRadius: 20,
+  },
+  retryBtnText: { color: WHITE, fontWeight: '700', fontSize: 14 },
+
+  // ── Status banner ────────────────────────────────────────────────────────
+  statusBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    padding: 16,
+    borderRadius: 16,
+  },
+  statusBannerTitle: { fontSize: 16, fontWeight: '800' },
+  statusBannerSub:   { fontSize: 12, marginTop: 2, opacity: 0.8 },
+
+  // ── Section card ─────────────────────────────────────────────────────────
+  sectionCard: {
+    backgroundColor: SURFACE,
+    borderRadius: 16,
+    padding: 16,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: BORDER,
+  },
+  sectionTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: TEXT_MUTED,
+    letterSpacing: 0.8,
+    marginBottom: 2,
+  },
+
+  divider: { height: 1, backgroundColor: BORDER, marginVertical: 2 },
+
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  infoLabel: { fontSize: 13, color: TEXT_SEC },
+  infoValue: { fontSize: 13, color: TEXT_PRI },
+
+  storeName: { fontSize: 14, fontWeight: '700', color: NAVY, marginBottom: 2 },
+
+  itemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  itemQty:   { fontSize: 13, color: TEXT_MUTED, width: 24 },
+  itemName:  { flex: 1, fontSize: 13, color: TEXT_PRI },
+  itemPrice: { fontSize: 13, fontWeight: '600', color: NAVY },
+
+  addressRow: { flexDirection: 'row', gap: 8 },
+  addressText: { flex: 1, fontSize: 13, color: TEXT_PRI, lineHeight: 20 },
+
+  // ── Tracking ─────────────────────────────────────────────────────────────
+  timeline: { gap: 0 },
+  timelineRow: {
+    flexDirection: 'row',
+    gap: 12,
+    minHeight: 48,
+  },
+  timelineLeft: { alignItems: 'center', width: 20 },
+  timelineDot: {
+    width: 20, height: 20, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
+    zIndex: 1,
+  },
+  timelineDotDone:    { backgroundColor: SUCCESS },
+  timelineDotPending: { backgroundColor: BORDER },
+  timelineLine: { flex: 1, width: 2, marginTop: 2 },
+  timelineLineDone:    { backgroundColor: SUCCESS },
+  timelineLinePending: { backgroundColor: BORDER },
+  timelineContent: { flex: 1, paddingBottom: 16 },
+  timelineLabel: { fontSize: 13, fontWeight: '600', color: TEXT_PRI },
+  timelineLabelPending: { color: TEXT_MUTED, fontWeight: '400' },
+  timelineTime:  { fontSize: 11, color: TEXT_MUTED, marginTop: 2 },
+
+  // ── Actions ──────────────────────────────────────────────────────────────
+  actionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  actionBtn: { alignItems: 'center', gap: 6 },
+  actionIconWrap: {
+    width: 52, height: 52, borderRadius: 26,
+    backgroundColor: ACCENT + '14',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  actionLabel: { fontSize: 11, color: TEXT_SEC, fontWeight: '600' },
+});

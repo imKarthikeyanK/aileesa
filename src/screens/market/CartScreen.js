@@ -27,6 +27,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useCart } from '../../context/CartContext';
 import { useTabBar } from '../../context/TabBarContext';
+import { useAuth } from '../../context/AuthContext';
+import AuthSheet from '../../components/auth/AuthSheet';
+import { OrdersAPI } from '../../api/ordersApi';
 
 // ─── Design Tokens ─────────────────────────────────────────────────────────────
 
@@ -192,8 +195,18 @@ function OrderSuccess({ insets }) {
 export default function CartScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { items, addItem, removeItem, clearCart } = useCart();
-  const [placing, setPlacing] = useState(false);
-  const [placed,  setPlaced]  = useState(false);
+  const { isAuthenticated } = useAuth();
+  const [placing, setPlacing]     = useState(false);
+  const [authSheet, setAuthSheet] = useState(false);
+  const pendingOrder = useRef(false);  // true when user hit Place Order before login
+
+  // Auto-trigger place order once user logs in from the auth sheet
+  useEffect(() => {
+    if (isAuthenticated && pendingOrder.current) {
+      pendingOrder.current = false;
+      handlePlaceOrder();
+    }
+  }, [isAuthenticated]);
 
   // ── Hide bottom tab bar while on this screen ──────────────────────────────
   const { hideTabBar, showTabBar } = useTabBar();
@@ -250,19 +263,34 @@ export default function CartScreen({ navigation }) {
   const toMinimum       = Math.max(0, MIN_ORDER_VALUE - subtotal);
 
   const handlePlaceOrder = async () => {
+    if (!isAuthenticated) {
+      pendingOrder.current = true;
+      setAuthSheet(true);
+      return;
+    }
     setPlacing(true);
-    // Simulate order placement API call
-    await new Promise(resolve => setTimeout(resolve, 1400));
-    setPlacing(false);
-    setPlaced(true);
-    clearCart();
-    setTimeout(() => navigation.popToTop(), 2200);
+    try {
+      const order = await OrdersAPI.placeOrder({
+        items,
+        subtotal,
+        delivery,
+        platform,
+        grandTotal,
+        storeGroups,
+      });
+      clearCart();
+      navigation.replace('BookingDetail', { bookingId: order.id });
+    } catch (e) {
+      // TODO: surface error toast
+    } finally {
+      setPlacing(false);
+    }
   };
 
-  if (placed) return <OrderSuccess insets={insets} />;
   if (items.length === 0) return <EmptyCart navigation={navigation} insets={insets} />;
 
   return (
+    <>
     <View style={styles.root}>
       <StatusBar barStyle="dark-content" backgroundColor={SURFACE} />
 
@@ -457,6 +485,8 @@ export default function CartScreen({ navigation }) {
         </Animated.View>
       </View>
     </View>
+    <AuthSheet visible={authSheet} onClose={() => setAuthSheet(false)} />
+    </>
   );
 }
 

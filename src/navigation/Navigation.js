@@ -13,6 +13,8 @@ import CartScreen from '../screens/market/CartScreen';
 import LocationPickerScreen from '../screens/LocationPickerScreen';
 import ExploreScreen from '../screens/ExploreScreen';
 import YouScreen from '../screens/YouScreen';
+import OrderHistoryScreen from '../screens/OrderHistoryScreen';
+import BookingDetailScreen from '../screens/market/BookingDetailScreen';
 
 // ─── Navigators ────────────────────────────────────────────────────────────────
 
@@ -45,6 +47,16 @@ function MarketNavigator() {
       <MarketStack.Screen
         name="Cart"
         component={CartScreen}
+        options={{ headerShown: false, animation: 'slide_from_right' }}
+      />
+      <MarketStack.Screen
+        name="BookingDetail"
+        component={BookingDetailScreen}
+        options={{ headerShown: false, animation: 'slide_from_right' }}
+      />
+      <MarketStack.Screen
+        name="OrderHistory"
+        component={OrderHistoryScreen}
         options={{ headerShown: false, animation: 'slide_from_right' }}
       />
       <MarketStack.Screen

@@ -156,7 +156,7 @@ function EditNameModal({ visible, currentName, onSave, onClose }) {
 }
 
 // ─── Main screen ───────────────────────────────────────────────────────────────
-export default function YouScreen() {
+export default function YouScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { user, isAuthenticated, logout, updateName } = useAuth();
 
@@ -231,7 +231,7 @@ export default function YouScreen() {
             iconColor={ACCENT}
             label="Past Orders"
             sublabel={isAuthenticated ? 'View your order history' : 'Login to view your orders'}
-            onPress={() => requireLogin(() => setShowComing(true))}
+            onPress={() => requireLogin(() => navigation.navigate('Market', { screen: 'OrderHistory' }))}
             last
           />
         </Section>

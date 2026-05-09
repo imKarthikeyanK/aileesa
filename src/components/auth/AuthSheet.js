@@ -25,7 +25,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Modal, Pressable,
-  TextInput, Animated, Platform, KeyboardAvoidingView, ActivityIndicator,
+  TextInput, Animated, Platform, Keyboard, Easing, ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -45,16 +45,14 @@ const WHITE     = '#FFFFFF';
 const OTP_LENGTH      = 6;
 const RESEND_COOLDOWN = 30; // seconds
 
-// ─── Step 1: Phone + name entry ───────────────────────────────────────────────
+// ─── Step 1: Phone entry ────────────────────────────────────────────────────────
 function PhoneStep({ onOtpSent, onClose }) {
   const { sendOtp } = useAuth();
-  const [name, setName]       = useState('');
   const [phone, setPhone]     = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState('');
-  const phoneRef = useRef(null);
 
-  const canSend = name.trim().length >= 2 && phone.length === 10;
+  const canSend = phone.length === 10;
 
   const handleSend = async () => {
     if (!canSend || loading) return;
@@ -65,7 +63,6 @@ function PhoneStep({ onOtpSent, onClose }) {
       onOtpSent({
         requestId: result.requestId,
         phone,
-        name: name.trim(),
         devOtp: result._devOtp,
       });
     } catch (e) {
@@ -86,21 +83,6 @@ function PhoneStep({ onOtpSent, onClose }) {
         We'll send a one-time code to your{'\n'}WhatsApp number
       </Text>
 
-      {/* Name */}
-      <View style={styles.fieldGroup}>
-        <Text style={styles.fieldLabel}>Your name</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g. Karthikeyan"
-          placeholderTextColor={TEXT_MUTED}
-          value={name}
-          onChangeText={(t) => { setName(t); setError(''); }}
-          autoCapitalize="words"
-          returnKeyType="next"
-          onSubmitEditing={() => phoneRef.current?.focus()}
-        />
-      </View>
-
       {/* Phone */}
       <View style={styles.fieldGroup}>
         <Text style={styles.fieldLabel}>WhatsApp number</Text>
@@ -109,7 +91,6 @@ function PhoneStep({ onOtpSent, onClose }) {
             <Text style={styles.dialCodeText}>🇮🇳  +91</Text>
           </View>
           <TextInput
-            ref={phoneRef}
             style={[styles.input, { flex: 1 }]}
             placeholder="10-digit number"
             placeholderTextColor={TEXT_MUTED}
@@ -119,6 +100,7 @@ function PhoneStep({ onOtpSent, onClose }) {
             returnKeyType="done"
             maxLength={10}
             onSubmitEditing={handleSend}
+            autoFocus
           />
         </View>
       </View>
@@ -140,7 +122,7 @@ function PhoneStep({ onOtpSent, onClose }) {
           ? <ActivityIndicator color={WHITE} size="small" />
           : (
             <>
-              <Text style={styles.primaryBtnText}>Send OTP</Text>
+              <Text style={styles.primaryBtnText}>Send Code</Text>
               <Ionicons name="arrow-forward" size={18} color={WHITE} />
             </>
           )}
@@ -374,25 +356,65 @@ export default function AuthSheet({ visible, onClose }) {
   const insets    = useSafeAreaInsets();
   const slideY    = useRef(new Animated.Value(700)).current;
   const bgOpacity = useRef(new Animated.Value(0)).current;
+  const keyboardY = useRef(new Animated.Value(0)).current;
 
   const [step, setStep]     = useState('phone'); // 'phone' | 'otp'
-  const [otpCtx, setOtpCtx] = useState(null);   // { requestId, phone, name, devOtp }
+  const [otpCtx, setOtpCtx] = useState(null);   // { requestId, phone, devOtp }
 
+  // ── Keyboard avoidance ─────────────────────────────────────────────────────
+  useEffect(() => {
+    const showEv = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEv = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const onShow = (e) => {
+      Animated.timing(keyboardY, {
+        toValue: -(e.endCoordinates.height - insets.bottom),
+        duration: e.duration ?? 260,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start();
+    };
+    const onHide = (e) => {
+      Animated.timing(keyboardY, {
+        toValue: 0,
+        duration: e.duration ?? 220,
+        easing: Easing.in(Easing.cubic),
+        useNativeDriver: true,
+      }).start();
+    };
+
+    const s1 = Keyboard.addListener(showEv, onShow);
+    const s2 = Keyboard.addListener(hideEv, onHide);
+    return () => { s1.remove(); s2.remove(); };
+  }, [insets.bottom]);
+
+  // ── Sheet slide-in / slide-out ─────────────────────────────────────────────
   useEffect(() => {
     if (visible) {
       Animated.parallel([
-        Animated.spring(slideY,    { toValue: 0, useNativeDriver: true, damping: 22, stiffness: 220 }),
-        Animated.timing(bgOpacity, { toValue: 1, duration: 220, useNativeDriver: true }),
+        Animated.spring(slideY, {
+          toValue: 0, useNativeDriver: true,
+          damping: 18, stiffness: 180, mass: 0.75,
+        }),
+        Animated.timing(bgOpacity, {
+          toValue: 1, duration: 280,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
       ]).start();
     } else {
       Animated.parallel([
-        Animated.timing(slideY,    { toValue: 700, duration: 260, useNativeDriver: true }),
-        Animated.timing(bgOpacity, { toValue: 0,   duration: 200, useNativeDriver: true }),
-      ]).start(() => {
-        // Reset after close animation finishes
-        setStep('phone');
-        setOtpCtx(null);
-      });
+        Animated.timing(slideY, {
+          toValue: 700, duration: 240,
+          easing: Easing.in(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(bgOpacity, {
+          toValue: 0, duration: 200,
+          easing: Easing.in(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]).start(() => { setStep('phone'); setOtpCtx(null); });
     }
   }, [visible]);
 
@@ -418,10 +440,7 @@ export default function AuthSheet({ visible, onClose }) {
       animationType="none"
       statusBarTranslucent
     >
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
+      <View style={{ flex: 1 }}>
         {/* Backdrop */}
         <Animated.View
           style={[StyleSheet.absoluteFill, styles.backdrop, { opacity: bgOpacity }]}
@@ -430,11 +449,15 @@ export default function AuthSheet({ visible, onClose }) {
           <Pressable style={{ flex: 1 }} onPress={onClose} />
         </Animated.View>
 
-        {/* Sheet */}
+        {/* Sheet — slides up from bottom, lifted further by keyboard */}
         <Animated.View
           style={[
             styles.sheet,
-            { paddingBottom: insets.bottom + 24, transform: [{ translateY: slideY }] },
+            {
+              position: 'absolute', left: 0, right: 0, bottom: 0,
+              paddingBottom: insets.bottom + 24,
+              transform: [{ translateY: Animated.add(slideY, keyboardY) }],
+            },
           ]}
         >
           <View style={styles.handle} />
@@ -446,14 +469,13 @@ export default function AuthSheet({ visible, onClose }) {
             <OtpStep
               requestId={otpCtx.requestId}
               phone={otpCtx.phone}
-              name={otpCtx.name}
               devOtp={otpCtx.devOtp}
               onSuccess={handleSuccess}
               onBack={handleBack}
             />
           )}
         </Animated.View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
