@@ -97,7 +97,7 @@ function QuantityControl({ quantity, onAdd, onRemove, maxReached }) {
 
 // ─── InventoryCard ─────────────────────────────────────────────────────────────
 
-function InventoryCard({ item, storeId, storeName }) {
+function InventoryCard({ item, storeId, storeName, storeClosed }) {
   const { addItem, removeItem, getItemQuantity } = useCart();
   const quantity   = getItemQuantity(item.id, storeId);
   const maxReached = item.max_quantity_per_item
@@ -133,16 +133,19 @@ function InventoryCard({ item, storeId, storeName }) {
     removeItem(item.id, storeId);
   }, [item.id, storeId, removeItem]);
 
+  // When the store is closed every card is treated as non-interactive
+  const cardInactive = !item.active || storeClosed;
+
   return (
-    <View style={[styles.productCard, !item.active && styles.productCardInactive]}>
+    <View style={[styles.productCard, cardInactive && styles.productCardInactive]}>
       {/* Icon swatch */}
       <View style={[styles.swatch, { backgroundColor: item.icon_bg ?? '#F0F1F8' }]}>
         <Ionicons
           name={item.icon ?? 'cube-outline'}
           size={28}
-          color={item.active ? (item.icon_color ?? ACCENT) : TEXT_MUTED}
+          color={cardInactive ? TEXT_MUTED : (item.icon_color ?? ACCENT)}
         />
-        {item.badge && item.active && (
+        {item.badge && item.active && !storeClosed && (
           <View style={[styles.swatchBadge, { backgroundColor: badgeBg }]}>
             <Text style={[styles.swatchBadgeText, { color: badgeColor }]}>
               {item.badge}
@@ -154,16 +157,16 @@ function InventoryCard({ item, storeId, storeName }) {
       {/* Details */}
       <View style={styles.productDetails}>
         <Text
-          style={[styles.productName, !item.active && styles.textInactive]}
+          style={[styles.productName, cardInactive && styles.textInactive]}
           numberOfLines={2}
         >
           {item.name}
         </Text>
-        <Text style={[styles.productUnit, !item.active && styles.textInactive]}>
+        <Text style={[styles.productUnit, cardInactive && styles.textInactive]}>
           {item.unit}
         </Text>
 
-        {item.active ? (
+        {item.active && !storeClosed ? (
           <View style={styles.priceRow}>
             <Text style={styles.price}>₹{item.price}</Text>
             {discount > 0 && (
@@ -176,13 +179,21 @@ function InventoryCard({ item, storeId, storeName }) {
             )}
           </View>
         ) : (
-          <Text style={styles.unavailableText}>Out of stock</Text>
+          <Text style={styles.unavailableText}>
+            {storeClosed ? 'Store closed' : 'Out of stock'}
+          </Text>
         )}
       </View>
 
       {/* Action */}
       <View style={styles.actionCol}>
-        {!item.active ? (
+        {storeClosed ? (
+          // Store-level closed state — all items unorderable
+          <View style={styles.closedChip}>
+            <Ionicons name="time-outline" size={12} color="#92400E" />
+            <Text style={styles.closedChipText}>Closed</Text>
+          </View>
+        ) : !item.active ? (
           <View style={styles.unavailableMark}>
             <Ionicons name="close-circle-outline" size={20} color={TEXT_MUTED} />
           </View>
@@ -211,7 +222,7 @@ function InventoryCard({ item, storeId, storeName }) {
 
 // ─── SectionBlock ──────────────────────────────────────────────────────────────
 
-function SectionBlock({ section, storeId, storeName, onLayout, isLast }) {
+function SectionBlock({ section, storeId, storeName, storeClosed, onLayout, isLast }) {
   return (
     <View onLayout={onLayout}>
       <View style={styles.sectionHeader}>
@@ -221,7 +232,7 @@ function SectionBlock({ section, storeId, storeName, onLayout, isLast }) {
 
       {section.items.map((item, idx) => (
         <React.Fragment key={item.id}>
-          <InventoryCard item={item} storeId={storeId} storeName={storeName} />
+          <InventoryCard item={item} storeId={storeId} storeName={storeName} storeClosed={storeClosed} />
           {idx < section.items.length - 1 && <View style={styles.itemDivider} />}
         </React.Fragment>
       ))}
@@ -339,7 +350,10 @@ export default function StoreDetailScreen({ route, navigation }) {
     setActiveSection(index);
   }, [insets.top]);
 
-  const cartBottomPad = storeCartCount > 0 ? 96 : 48;
+  // Derive store closed state — support both snake_case (API) and camelCase (route param)
+  const isStoreClosed = storeDetail.is_open === false || storeDetail.isOpen === false;
+
+  const cartBottomPad = storeCartCount > 0 && !isStoreClosed ? 96 : 48;
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -522,12 +536,28 @@ export default function StoreDetailScreen({ route, navigation }) {
         )}
 
         {/* Sectioned inventory */}
+        {/* Closed store banner — sits between the info card and product list */}
+        {isStoreClosed && (
+          <View style={styles.storeClosedBanner}>
+            <View style={styles.storeClosedIconWrap}>
+              <Ionicons name="time-outline" size={20} color="#92400E" />
+            </View>
+            <View style={styles.storeClosedTextBlock}>
+              <Text style={styles.storeClosedTitle}>Store is currently closed</Text>
+              <Text style={styles.storeClosedSubtitle}>
+                You can browse items but cannot place orders right now.
+              </Text>
+            </View>
+          </View>
+        )}
+
         {sections.map((section, sIdx) => (
           <SectionBlock
             key={section.id}
             section={section}
             storeId={routeStore.id}
             storeName={storeDetail.name}
+            storeClosed={isStoreClosed}
             isLast={sIdx === sections.length - 1 && !invHasNext}
             onLayout={e => { sectionOffsets.current[sIdx] = e.nativeEvent.layout.y; }}
           />
@@ -549,12 +579,14 @@ export default function StoreDetailScreen({ route, navigation }) {
         )}
       </Animated.ScrollView>
 
-      {/* Cart floating card */}
-      <CartFloatingCard
-        storeId={routeStore.id}
-        onPress={() => navigation.navigate('Cart')}
-        bottomInset={insets.bottom}
-      />
+      {/* Cart floating card — hidden when store is closed */}
+      {!isStoreClosed && (
+        <CartFloatingCard
+          storeId={routeStore.id}
+          onPress={() => navigation.navigate('Cart')}
+          bottomInset={insets.bottom}
+        />
+      )}
 
       {/* Toast */}
       <Toast message={toastMsg} onDismiss={() => setToastMsg('')} />
@@ -1013,6 +1045,65 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     width: 72,
+  },
+
+  // ── Store-closed chip (replaces ADD button when store is closed) ──────────
+  closedChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FEF3C7',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    minWidth: 72,
+    justifyContent: 'center',
+  },
+  closedChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#92400E',
+    letterSpacing: 0.2,
+  },
+
+  // ── Store-closed banner (above inventory list) ────────────────────────────
+  storeClosedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 4,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  storeClosedIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#FEF3C7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  storeClosedTextBlock: {
+    flex: 1,
+  },
+  storeClosedTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#92400E',
+    marginBottom: 2,
+  },
+  storeClosedSubtitle: {
+    fontSize: 12,
+    color: '#B45309',
+    fontWeight: '500',
+    lineHeight: 17,
   },
 
   // ── Quantity stepper ─────────────────────────────────────────────────────

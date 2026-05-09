@@ -22,6 +22,7 @@ import Navigation from './src/navigation/Navigation';
 import { CartProvider } from './src/context/CartContext';
 import { LocationProvider } from './src/context/LocationContext';
 import SplashScreen from './src/screens/SplashScreen';
+import CartConflictModal from './src/components/CartConflictModal';
 
 export default function App() {
   const [splashDone, setSplashDone] = useState(false);
@@ -34,6 +35,7 @@ export default function App() {
             <CartProvider>
               <StatusBar style="light" translucent />
               <Navigation />
+              <CartConflictModal />
               {!splashDone && (
                 <SplashScreen onDone={() => setSplashDone(true)} />
               )}
