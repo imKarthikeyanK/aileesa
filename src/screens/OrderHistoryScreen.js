@@ -5,7 +5,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  ActivityIndicator, StatusBar, RefreshControl,
+  ActivityIndicator, StatusBar, RefreshControl, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -140,13 +140,17 @@ export default function OrderHistoryScreen({ navigation }) {
           contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 24 }}
           ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
           showsVerticalScrollIndicator={false}
+          // Pull-to-refresh gesture has no effect on web; exclude it entirely to
+          // avoid rendering a stub that may flicker on scroll.
           refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={[ACCENT]}
-              tintColor={ACCENT}
-            />
+            Platform.OS !== 'web' ? (
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                colors={[ACCENT]}
+                tintColor={ACCENT}
+              />
+            ) : undefined
           }
           renderItem={({ item }) => (
             <OrderCard

@@ -22,6 +22,7 @@ import React, {
   useEffect,
   useReducer,
 } from 'react';
+import { Platform } from 'react-native';
 import * as Location from 'expo-location';
 import { checkServiceability } from '../api/locationApi';
 
@@ -74,7 +75,10 @@ export function LocationProvider({ children }) {
       permStatus = status;
       dispatch({ type: 'SET_PERMISSION', payload: status });
     } catch {
-      dispatch({ type: 'SET_ERROR', payload: 'Failed to request location permission.' });
+      const msg = Platform.OS === 'web'
+        ? 'Location access requires a secure connection (HTTPS). Please try again or enter your address manually.'
+        : 'Failed to request location permission.';
+      dispatch({ type: 'SET_ERROR', payload: msg });
       return;
     }
 
@@ -96,7 +100,10 @@ export function LocationProvider({ children }) {
       };
       dispatch({ type: 'SET_COORDS', payload: coords });
     } catch {
-      dispatch({ type: 'SET_ERROR', payload: 'Could not determine your location. Please try again.' });
+      const msg = Platform.OS === 'web'
+        ? 'Could not determine your location. Ensure location services are enabled in your browser and the page is loaded over HTTPS.'
+        : 'Could not determine your location. Please try again.';
+      dispatch({ type: 'SET_ERROR', payload: msg });
       return;
     }
 

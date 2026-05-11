@@ -363,6 +363,11 @@ export default function AuthSheet({ visible, onClose }) {
 
   // ── Keyboard avoidance ─────────────────────────────────────────────────────
   useEffect(() => {
+    // On web the browser manages the virtual keyboard via viewport resize;
+    // Keyboard.addListener is a no-op stub in react-native-web and the
+    // keyboardY value stays at 0, which is the correct default.
+    if (Platform.OS === 'web') return;
+
     const showEv = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEv = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
 
@@ -540,7 +545,12 @@ const styles = StyleSheet.create({
     gap: 7, marginVertical: 4,
   },
   otpBox: {
-    flex: 1, aspectRatio: 0.82,
+    // On web, flex:1 + aspectRatio causes the box to stretch to full sheet
+    // height because there is no explicit height ancestor. Use fixed dimensions
+    // on web and the original flex/aspectRatio approach on native.
+    ...(Platform.OS === 'web'
+      ? { width: 44, height: 54 }
+      : { flex: 1, aspectRatio: 0.82 }),
     backgroundColor: BG, borderRadius: 12,
     borderWidth: 2, borderColor: BORDER,
     fontSize: 22, fontWeight: '800', color: NAVY,

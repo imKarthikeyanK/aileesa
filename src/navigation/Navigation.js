@@ -24,12 +24,17 @@ const MarketStack = createNativeStackNavigator();
 // ─── Market Stack (L1 → L2) ────────────────────────────────────────────────────
 
 function MarketNavigator() {
+  // Native stack animations are silently ignored on web — use 'none' to avoid
+  // potential flicker and keep transitions consistent across platforms.
+  const slideRight  = Platform.OS !== 'web' ? 'slide_from_right'  : 'none';
+  const slideBottom = Platform.OS !== 'web' ? 'slide_from_bottom' : 'none';
+
   return (
     <MarketStack.Navigator
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: theme.colors.background },
-        animation: 'slide_from_right',
+        animation: slideRight,
       }}
     >
       <MarketStack.Screen
@@ -41,28 +46,28 @@ function MarketNavigator() {
         component={StoreDetailScreen}
         options={{
           headerShown: false,
-          animation: 'slide_from_right',
+          animation: slideRight,
         }}
       />
       <MarketStack.Screen
         name="Cart"
         component={CartScreen}
-        options={{ headerShown: false, animation: 'slide_from_right' }}
+        options={{ headerShown: false, animation: slideRight }}
       />
       <MarketStack.Screen
         name="BookingDetail"
         component={BookingDetailScreen}
-        options={{ headerShown: false, animation: 'slide_from_right' }}
+        options={{ headerShown: false, animation: slideRight }}
       />
       <MarketStack.Screen
         name="OrderHistory"
         component={OrderHistoryScreen}
-        options={{ headerShown: false, animation: 'slide_from_right' }}
+        options={{ headerShown: false, animation: slideRight }}
       />
       <MarketStack.Screen
         name="LocationPicker"
         component={LocationPickerScreen}
-        options={{ headerShown: false, animation: 'slide_from_bottom' }}
+        options={{ headerShown: false, animation: slideBottom }}
       />
     </MarketStack.Navigator>
   );

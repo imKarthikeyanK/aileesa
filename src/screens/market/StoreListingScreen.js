@@ -596,7 +596,9 @@ export default function StoreListingScreen({ navigation }) {
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
           {
-            useNativeDriver: true,
+            // useNativeDriver for scroll-driven Animated.event is not supported on web;
+            // react-native-web silently ignores it and the animation breaks.
+            useNativeDriver: Platform.OS !== 'web',
             listener: (e) => handleScrollDirection(e.nativeEvent.contentOffset.y),
           },
         )}

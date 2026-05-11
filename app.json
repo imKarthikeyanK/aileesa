@@ -40,7 +40,16 @@
     },
     "web": {
       "favicon": "./assets/favicon.png",
-      "bundler": "metro"
+      "bundler": "metro",
+      "name": "Aileesa",
+      "shortName": "Aileesa",
+      "description": "Hyperlocal delivery — order from local stores near you",
+      "themeColor": "#6200EE",
+      "backgroundColor": "#6200EE",
+      "lang": "en",
+      "meta": {
+        "viewport": "width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"
+      }
     },
     "plugins": [
       "expo-font",

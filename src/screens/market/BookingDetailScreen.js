@@ -8,7 +8,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, StatusBar, Linking, Share,
+  ActivityIndicator, StatusBar, Linking, Share, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -157,10 +157,19 @@ export default function BookingDetailScreen({ route, navigation }) {
   useEffect(() => { load(); }, [load]);
 
   const handleShare = async () => {
+    const message = `My Aileesa order #${order.id} — ₹${order.grandTotal} from ${order.storeName}.`;
+    if (Platform.OS === 'web') {
+      // navigator.share requires HTTPS and is not universally available;
+      // fall back to clipboard copy when unavailable.
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        try { await navigator.share({ text: message }); } catch (_) {}
+      } else if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        try { await navigator.clipboard.writeText(message); } catch (_) {}
+      }
+      return;
+    }
     try {
-      await Share.share({
-        message: `My Aileesa order #${order.id} — ₹${order.grandTotal} from ${order.storeName}.`,
-      });
+      await Share.share({ message });
     } catch (_) {}
   };
 

@@ -24,6 +24,7 @@ import {
   Animated,
   Dimensions,
   FlatList,
+  Platform,
   StatusBar,
   StyleSheet,
   Text,
@@ -406,7 +407,8 @@ export default function StoreDetailScreen({ route, navigation }) {
         showsVerticalScrollIndicator={false}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: true, listener: handleScrollListener },
+          // useNativeDriver for scroll-event-driven animations is not supported on web.
+          { useNativeDriver: Platform.OS !== 'web', listener: handleScrollListener },
         )}
         scrollEventThrottle={16}
       >

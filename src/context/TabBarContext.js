@@ -24,7 +24,10 @@ import React, {
 import { Animated, Platform } from 'react-native';
 
 // Tab bar pixel heights (must match Navigation.js tabBarStyle.height)
-export const TAB_BAR_H = Platform.OS === 'ios' ? 80 : 64;
+export const TAB_BAR_H =
+  Platform.OS === 'ios' ? 80 :
+  Platform.OS === 'web' ? 64 :
+  64;
 
 const TabBarCtx = createContext(null);
 
