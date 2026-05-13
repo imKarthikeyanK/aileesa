@@ -11,6 +11,7 @@ npm-debug.*
 *.orig.*
 
 build*
+!src/api/buildConfig.js
 
 # Internal docs
 docs/
