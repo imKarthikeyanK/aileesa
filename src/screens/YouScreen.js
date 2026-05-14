@@ -158,11 +158,15 @@ function EditNameModal({ visible, currentName, onSave, onClose }) {
 // ─── Main screen ───────────────────────────────────────────────────────────────
 export default function YouScreen({ navigation }) {
   const insets = useSafeAreaInsets();
-  const { user, isAuthenticated, logout, updateName } = useAuth();
+  const { user, isAuthenticated, logout, updateName, fetchProfile } = useAuth();
 
   const [authSheetVisible, setAuthSheetVisible] = useState(false);
   const [editNameVisible,  setEditNameVisible]  = useState(false);
   const [showComing,       setShowComing]       = useState(false);
+
+  useEffect(() => {
+    if (isAuthenticated) fetchProfile?.();
+  }, [isAuthenticated]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const initials = user?.name
     ? user.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)

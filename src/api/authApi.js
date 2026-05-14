@@ -11,6 +11,8 @@
  *   verifyOtp(requestId, otp)                   → { accessToken, refreshToken, expiresInSec, user }
  *   refreshAccessToken(token)                   → { accessToken, refreshToken?, expiresInSec, user? }
  *   revokeSession(refreshToken, { accessToken? }) → void
+ *   getProfile({ accessToken })                 → { id, name, phone, email?, role?, business_id? }
+ *   updateProfile(fields, { accessToken })      → { id, name, phone, email? }
  *
  * OTP FORMAT: 6-char alphanumeric — 1 letter + 4 digits + 1 letter (e.g. "A3456B")
  * TOKENS:     Signed by backend in production; mock uses a simple encoded payload.
@@ -185,12 +187,29 @@ const MockProvider = {
     if (payload?.jti) _revokedJtis.add(payload.jti);
   },
 
-  /** Mock-only: update the name stored for a phone number */
-  async updateUserName(phone, name) {
-    const user = _usersByPhone.get(phone);
+  async getProfile({ accessToken } = {}) {
+    await delay(300);
+    const payload = decodeToken(accessToken);
+    if (!payload) throw authError('INVALID_TOKEN', 'Invalid access token.');
+    const user = _usersByPhone.get(payload.phone);
+    return {
+      id:    user?.id ?? payload.sub,
+      name:  user?.name ?? '',
+      phone: payload.phone,
+      email: user?.email ?? null,
+    };
+  },
+
+  async updateProfile(fields, { accessToken } = {}) {
+    await delay(400);
+    const payload = decodeToken(accessToken);
+    if (!payload) return;
+    const user = _usersByPhone.get(payload.phone);
     if (user) {
-      user.name = name;
-      _usersByPhone.set(phone, user);
+      if (fields.name  !== undefined) user.name  = fields.name;
+      if (fields.email !== undefined) user.email = fields.email;
+      _usersByPhone.set(payload.phone, user);
+      return { id: user.id, name: user.name, phone: user.phone, email: user.email ?? null };
     }
   },
 };
@@ -219,6 +238,29 @@ const RealProvider = {
   async _patch(path, body, { accessToken } = {}) {
     const res = await fetch(`${this.BASE_URL}${path}`, {
       method:  'PATCH',
+      headers: getHeaders({ accessToken }),
+      body:    JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) throw authError(data.error_code ?? data.code ?? 'NETWORK_ERROR', data.message ?? 'An error occurred.');
+    return data;
+  },
+
+  /** GET helper — for read-only authenticated endpoints. */
+  async _get(path, { accessToken } = {}) {
+    const res = await fetch(`${this.BASE_URL}${path}`, {
+      method:  'GET',
+      headers: getHeaders({ accessToken }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw authError(data.error_code ?? data.code ?? 'NETWORK_ERROR', data.message ?? 'An error occurred.');
+    return data;
+  },
+
+  /** PUT helper — for full-resource update endpoints. */
+  async _put(path, body, { accessToken } = {}) {
+    const res = await fetch(`${this.BASE_URL}${path}`, {
+      method:  'PUT',
       headers: getHeaders({ accessToken }),
       body:    JSON.stringify(body),
     });
@@ -284,8 +326,16 @@ const RealProvider = {
     // Fire-and-forget — AuthContext clears the local session regardless.
   },
 
-  async updateUserName(phone, name, { accessToken } = {}) {
-    return this._patch('/user/profile', { name }, { accessToken });
+  /** GET /me — fetch the authenticated user's full profile. */
+  async getProfile({ accessToken } = {}) {
+    const { data } = await this._get('/me', { accessToken });
+    return data;
+  },
+
+  /** PUT /me — update profile fields (name, email, phone). */
+  async updateProfile(fields, { accessToken } = {}) {
+    const { data } = await this._put('/me', fields, { accessToken });
+    return data;
   },
 };
 

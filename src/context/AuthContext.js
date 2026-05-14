@@ -214,9 +214,24 @@ export function AuthProvider({ children }) {
     const updated = { ...user, name };
     setUser(updated);
     await TokenStorage.set(KEYS.USER, JSON.stringify(updated));
-    // Sync to backend if available
-    if (AuthAPI.updateUserName) {
-      await AuthAPI.updateUserName(user.phone, name).catch(() => {});
+    const at = await TokenStorage.get(KEYS.ACCESS);
+    await AuthAPI.updateProfile({ name }, { accessToken: at }).catch(() => {});
+  }, [user]);
+
+  /** Fetch the latest profile from the backend and merge into local state */
+  const fetchProfile = useCallback(async () => {
+    if (!user) return;
+    try {
+      const at = await TokenStorage.get(KEYS.ACCESS);
+      if (!at) return;
+      const profile = await AuthAPI.getProfile({ accessToken: at });
+      if (profile) {
+        const updated = { ...user, ...profile };
+        setUser(updated);
+        await TokenStorage.set(KEYS.USER, JSON.stringify(updated));
+      }
+    } catch {
+      // Non-critical — profile fetch failures should not break the app
     }
   }, [user]);
 
@@ -233,6 +248,7 @@ export function AuthProvider({ children }) {
     verifyOtp,
     logout,
     updateName,
+    fetchProfile,
     getAccessToken,
   };
 
