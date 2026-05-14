@@ -39,6 +39,7 @@ import { useTabBar, TAB_BAR_H } from '../../context/TabBarContext';
 import { useCart } from '../../context/CartContext';
 import CartFloatingCard from '../../components/CartFloatingCard';
 import Toast from '../../components/Toast';
+import * as Location from 'expo-location';
 
 const { width: SW } = Dimensions.get('window');
 
@@ -199,19 +200,27 @@ const CATEGORIES = [
 //   },
 // ];
 
-// ─── NonServiceableBanner ────────────────────────────────────────────────────────
+// ─── LocationCard ─────────────────────────────────────────────────────────────
+// Shared card for both "permission denied" and "not serviceable" states.
 
-function NonServiceableBanner() {
+function LocationCard({ icon, iconBg, iconColor, title, subtitle, btnLabel, onBtn }) {
   return (
-    <View style={styles.nsvcBanner}>
-      <View style={styles.nsvcIconWrap}>
-        <Ionicons name="location-off-outline" size={22} color="#92400E" />
-      </View>
-      <View style={styles.nsvcTextBlock}>
-        <Text style={styles.nsvcTitle}>Service unavailable in your area</Text>
-        <Text style={styles.nsvcSubtitle}>
-          We’re expanding rapidly and will be available in your location very soon.
-        </Text>
+    <View style={styles.locCardWrap}>
+      <View style={styles.locCard}>
+        <View style={[styles.locCardIcon, { backgroundColor: iconBg }]}>
+          <Ionicons name={icon} size={40} color={iconColor} />
+        </View>
+        <Text style={styles.locCardTitle}>{title}</Text>
+        <Text style={styles.locCardSub}>{subtitle}</Text>
+        {btnLabel && (
+          <TouchableOpacity
+            style={[styles.locCardBtn, { backgroundColor: iconColor }]}
+            onPress={onBtn}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.locCardBtnText}>{btnLabel}</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
@@ -357,10 +366,20 @@ export default function StoreListingScreen({ navigation }) {
   const totalCartItems = items.reduce((s, i) => s + i.quantity, 0);
 
   // ── Location / serviceability ─────────────────────────────────────────────────
-  const { serviceability, status: locationStatus } = useLocation();
-  // Treat as serviceable while still loading (avoids blocking UI unnecessarily)
-  const isServiceable =
-    locationStatus !== 'done' || serviceability?.serviceable !== false;
+  const { serviceability, status: locationStatus, permissionStatus, runServiceabilityCheck } = useLocation();
+
+  // Trigger serviceability check once when SLP mounts
+  useEffect(() => {
+    if (permissionStatus === 'granted' && serviceability === null && locationStatus === 'done') {
+      runServiceabilityCheck();
+    }
+  }, [permissionStatus, locationStatus]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const permissionGranted        = permissionStatus === 'granted';
+  const isCheckingServiceability = ['locating', 'checking'].includes(locationStatus);
+  const serviceabilityDone       = locationStatus === 'done' && serviceability !== null;
+  const showPermissionCard       = locationStatus === 'done' && !permissionGranted;
+  const showNonServiceableCard   = serviceabilityDone && serviceability?.serviceable === false;
   const [toastMsg, setToastMsg] = useState('');
 
   // ── Category filter ───────────────────────────────────────────────────────────
@@ -480,8 +499,6 @@ export default function StoreListingScreen({ navigation }) {
 
   const renderListHeader = () => (
     <View>
-      {/* Non-serviceable banner — shown when serviceability check is done and area is unsupported */}
-      {!isServiceable && locationStatus === 'done' && <NonServiceableBanner />}
       {/* Category filter chips — hidden via FEATURE_FILTER flag; all stores shown by default */}
       {FEATURE_FILTER && (
         <FlatList
@@ -566,22 +583,40 @@ export default function StoreListingScreen({ navigation }) {
     <View style={styles.root}>
       <StatusBar barStyle="dark-content" backgroundColor={WHITE} />
 
-      {/* ━━━ [1] Scrollable content ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+      {/* ━━━ [1] Content: location card OR scrollable store list ━━━━━━━━━━━━━━━━━━ */}
+      {showPermissionCard ? (
+        <View style={[styles.locCardArea, { paddingTop: TOTAL_HEADER_H }]}>
+          <LocationCard
+            icon="location-outline"
+            iconBg={ACCENT_LIGHT}
+            iconColor={ACCENT}
+            title="Location access needed"
+            subtitle="Grant location access so we can check if we deliver to your area and show you nearby stores."
+            btnLabel="Grant Permission"
+            onBtn={async () => {
+              await Location.requestForegroundPermissionsAsync().catch(() => {});
+              runServiceabilityCheck();
+            }}
+          />
+        </View>
+      ) : showNonServiceableCard ? (
+        <View style={[styles.locCardArea, { paddingTop: TOTAL_HEADER_H }]}>
+          <LocationCard
+            icon="location-off-outline"
+            iconBg="#FEF3C7"
+            iconColor="#92400E"
+            title="We’re not in your area yet"
+            subtitle="We’re expanding rapidly and will be available in your location very soon. Stay tuned!"
+          />
+        </View>
+      ) : (
       <Animated.FlatList
         data={stores}
         keyExtractor={item => item.id}
         renderItem={({ item }) => (
           <StoreCard
             store={item}
-            onPress={() => {
-              if (!isServiceable) {
-                setToastMsg(
-                  "We\u2019re not in your area yet \u2014 we\u2019re expanding rapidly and will be available in your location very soon.",
-                );
-              } else {
-                navigation.navigate('StoreDetail', { store: item });
-              }
-            }}
+            onPress={() => navigation.navigate('StoreDetail', { store: item })}
           />
         )}
         ListHeaderComponent={renderListHeader}
@@ -604,6 +639,7 @@ export default function StoreListingScreen({ navigation }) {
         )}
         scrollEventThrottle={16}
       />
+      )}
 
       {/* ━━━ [2] Animated container: expand zone + search bar ━━━━━━━━━━━━━━━━━ */}
       <Animated.View
@@ -688,7 +724,11 @@ export default function StoreListingScreen({ navigation }) {
             >
               <Ionicons name="location" size={13} color={ACCENT} />
               <Text style={styles.miniLocText} numberOfLines={1}>
-                {serviceability?.city ?? 'Locating…'}
+                {!permissionGranted
+                  ? 'Location off'
+                  : isCheckingServiceability
+                  ? 'Locating…'
+                  : (serviceability?.city ?? '—')}
               </Text>
             </Animated.View>
 
@@ -1210,42 +1250,66 @@ const styles = StyleSheet.create({
     color: ACCENT,
   },
 
-  // ── Non-serviceable banner ───────────────────────────────────────────────────
-  nsvcBanner: {
-    flexDirection:    'row',
-    alignItems:       'center',
-    marginHorizontal: 16,
-    marginTop:        14,
-    marginBottom:     4,
-    backgroundColor:  '#FFFBEB',
-    borderRadius:     14,
-    padding:          14,
-    gap:              12,
-    borderWidth:      1.5,
-    borderColor:      '#FDE68A',
-  },
-  nsvcIconWrap: {
-    width:            42,
-    height:           42,
-    borderRadius:     12,
-    backgroundColor:  '#FEF3C7',
-    alignItems:       'center',
-    justifyContent:   'center',
-    flexShrink:       0,
-  },
-  nsvcTextBlock: {
+  // ── Location card (permission denied / non-serviceable) ────────────────────
+  locCardArea: {
     flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    paddingBottom: 80,
   },
-  nsvcTitle: {
-    fontSize:     14,
-    fontWeight:   '700',
-    color:        '#78350F',
-    marginBottom: 2,
+  locCardWrap: {
+    width: '100%',
   },
-  nsvcSubtitle: {
-    fontSize:   12,
-    color:      '#92400E',
-    lineHeight: 17,
+  locCard: {
+    width: '100%',
+    maxWidth: 380,
+    backgroundColor: WHITE,
+    borderRadius: 24,
+    padding: 32,
+    alignItems: 'center',
+    gap: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.07,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: BORDER,
+  },
+  locCardIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
+  locCardTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: TEXT_PRI,
+    textAlign: 'center',
+    letterSpacing: -0.4,
+  },
+  locCardSub: {
+    fontSize: 14,
+    color: TEXT_SEC,
+    textAlign: 'center',
+    lineHeight: 21,
     fontWeight: '500',
+    marginTop: 2,
+  },
+  locCardBtn: {
+    marginTop: 12,
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 14,
+    alignItems: 'center',
+  },
+  locCardBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: WHITE,
   },
 });

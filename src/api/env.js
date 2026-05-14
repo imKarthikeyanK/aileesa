@@ -34,7 +34,7 @@ const ENVIRONMENTS = {
   dev: {
     name:       'dev',
     label:      'Development',
-    apiBaseUrl: 'https://api-dev.aileesa.com/v1',
+    apiBaseUrl: 'https://api-dev.aileesa.com',
     /** Show dev-only UI (mock OTP banner, env badge, etc.) */
     debugUI:    true,
     /** Default auth provider when ACTIVE_PROVIDER in authApi.js is not 'real' */
@@ -44,7 +44,7 @@ const ENVIRONMENTS = {
   sbox: {
     name:       'sbox',
     label:      'Sandbox',
-    apiBaseUrl: 'https://api-sbox.aileesa.com/v1',
+    apiBaseUrl: 'https://api-sbox.aileesa.com',
     debugUI:    false,
     mockAuth:   false,
   },
@@ -52,7 +52,7 @@ const ENVIRONMENTS = {
   prod: {
     name:       'prod',
     label:      'Production',
-    apiBaseUrl: 'https://api.aileesa.com/v1',
+    apiBaseUrl: 'https://api.aileesa.com',
     debugUI:    false,
     mockAuth:   false,
   },
@@ -81,8 +81,14 @@ if (!ENVIRONMENTS[_envKey]) {
 /** Full config object for the active environment. */
 export const ENV = ENVIRONMENTS[_envKey];
 
-/** Base URL for all API calls — import this instead of hardcoding URLs. */
+/** Root domain — prefer AUTH_API_URL or AILEESA_API_URL for actual calls. */
 export const BASE_URL = ENV.apiBaseUrl;
+
+/** Auth service base — maps to /ozauth/external/v1 */
+export const AUTH_API_URL = `${BASE_URL}/ozauth/external/v1`;
+
+/** Aileesa service base — maps to /aileesa/external/v1 */
+export const AILEESA_API_URL = `${BASE_URL}/aileesa/external/v1`;
 
 /** Convenience flags */
 export const IS_DEV  = ENV.name === 'dev';

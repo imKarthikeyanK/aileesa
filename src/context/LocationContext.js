@@ -2,17 +2,17 @@
  * LocationContext.js — Global location & serviceability state
  *
  * Status lifecycle:
- *   idle → requesting → locating → checking → done
- *                    ↘ denied (permission refused)
- *             (any step) → error
+ *   Phase 1 (Splash):  idle → requesting → done
+ *   Phase 2 (SLP):     done → locating → checking → done | error
  *
  * Exposes via useLocation():
- *   status          — current lifecycle stage
- *   coords          — { latitude, longitude } | null
- *   serviceability  — { serviceable, city, zone, message } | null
- *   permissionStatus — 'granted' | 'denied' | 'undetermined' | null
- *   errorMessage    — string | null
- *   retryLocation   — () => void  (re-runs the whole flow)
+ *   status            — current lifecycle stage
+ *   coords            — { latitude, longitude } | null
+ *   serviceability    — { serviceable, city, zone, message } | null
+ *   permissionStatus  — 'granted' | 'denied' | 'undetermined' | null
+ *   errorMessage      — string | null
+ *   requestPermission       — () => void  Phase 1: request OS permission (called by Splash)
+ *   runServiceabilityCheck  — () => void  Phase 2: GPS + serviceability (called by SLP)
  */
 
 import React, {
@@ -64,31 +64,29 @@ const LocationCtx = createContext(null);
 export function LocationProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
 
-  const run = useCallback(async () => {
-    dispatch({ type: 'RESET' });
-    dispatch({ type: 'SET_STATUS', payload: 'requesting' });
+  // ── Phase 1: request OS permission only (called by SplashScreen on mount) ──
+  const requestPermission = useCallback(async () => {
+    dispatch({ type: 'SET_STATUS',       payload: 'requesting' });
+    dispatch({ type: 'SET_PERMISSION',   payload: null });
+    dispatch({ type: 'SET_SERVICEABILITY', payload: null });
+    dispatch({ type: 'SET_COORDS',       payload: null });
 
-    // ── Step 1: Request OS permission ────────────────────────────────────────
-    let permStatus;
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      permStatus = status;
       dispatch({ type: 'SET_PERMISSION', payload: status });
     } catch {
-      const msg = Platform.OS === 'web'
-        ? 'Location access requires a secure connection (HTTPS). Please try again or enter your address manually.'
-        : 'Failed to request location permission.';
-      dispatch({ type: 'SET_ERROR', payload: msg });
-      return;
+      // On web without HTTPS, the call throws — treat as denied so Splash proceeds
+      dispatch({ type: 'SET_PERMISSION', payload: 'denied' });
     }
 
-    if (permStatus !== 'granted') {
-      dispatch({ type: 'SET_STATUS', payload: 'denied' });
-      return;
-    }
+    // Always mark done so SplashScreen transitions regardless of the outcome
+    dispatch({ type: 'SET_STATUS', payload: 'done' });
+  }, []);
 
-    // ── Step 2: Get GPS coordinates ──────────────────────────────────────────
+  // ── Phase 2: GPS coords + serviceability check (called by SLP on mount) ────
+  const runServiceabilityCheck = useCallback(async () => {
     dispatch({ type: 'SET_STATUS', payload: 'locating' });
+
     let coords;
     try {
       const position = await Location.getCurrentPositionAsync({
@@ -107,7 +105,6 @@ export function LocationProvider({ children }) {
       return;
     }
 
-    // ── Step 3: Check serviceability ─────────────────────────────────────────
     dispatch({ type: 'SET_STATUS', payload: 'checking' });
     try {
       const result = await checkServiceability(coords);
@@ -118,11 +115,11 @@ export function LocationProvider({ children }) {
     }
   }, []);
 
-  // Run once on mount
-  useEffect(() => { run(); }, []);
+  // Run permission request once on app start (Splash observes this)
+  useEffect(() => { requestPermission(); }, []);
 
   return (
-    <LocationCtx.Provider value={{ ...state, retryLocation: run }}>
+    <LocationCtx.Provider value={{ ...state, requestPermission, runServiceabilityCheck }}>
       {children}
     </LocationCtx.Provider>
   );

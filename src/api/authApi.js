@@ -216,10 +216,10 @@ const MockProvider = {
 
 // ─── Real Provider (production) ───────────────────────────────────────────────
 import { getHeaders } from './requestHeaders';
-import { BASE_URL as _BASE_URL } from './env';
+import { AUTH_API_URL } from './env';
 
 const RealProvider = {
-  BASE_URL: `${_BASE_URL}/auth`,
+  BASE_URL: AUTH_API_URL,
 
   /** POST helper — injects all x-oz-* headers plus optional Bearer token. */
   async _post(path, body, { accessToken } = {}) {

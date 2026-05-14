@@ -1,13 +1,9 @@
 /**
- * SplashScreen.js — Branded loading gate shown while:
- *   1. Location permission is being requested
- *   2. GPS coordinates are being fetched
- *   3. Serviceability API is being called
+ * SplashScreen.js — Branded loading gate shown while location permission is requested.
  *
- * When done/denied/error → calls onDone() to hand off to main navigation.
- *   - "done"   → brief "All set!" delay then smooth fade-out
- *   - "denied" → shows an actionable denied-state UI (retry / skip)
- *   - "error"  → shows retry / skip options
+ * Only Phase 1 of the location flow runs here (permission request).
+ * The screen always calls onDone() once permission is resolved (granted OR denied).
+ * GPS coordinates and serviceability are checked in StoreListingScreen.
  */
 
 import React, { useEffect, useRef } from 'react';
@@ -15,7 +11,6 @@ import {
   Animated,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -32,18 +27,14 @@ const WHITE  = '#FFFFFF';
 const STATUS_COPY = {
   idle:       'Starting up…',
   requesting: 'Getting your location…',
-  locating:   'Pinpointing your position…',
-  checking:   'Checking service availability…',
   done:       'All set! ✓',
-  denied:     null,   // handled by separate UI block
-  error:      null,
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function SplashScreen({ onDone }) {
   const insets = useSafeAreaInsets();
-  const { status, retryLocation } = useLocation();
+  const { status } = useLocation();
 
   // ── Animations ──────────────────────────────────────────────────────────────
 
@@ -98,7 +89,7 @@ export default function SplashScreen({ onDone }) {
     runDots();
   }, [dot1, dot2, dot3]);
 
-  // Transition: fade out when status is 'done', hand off for 'denied'/'error'
+  // Transition: fade out once permission is resolved (done), then hand off to SLP
   useEffect(() => {
     if (status === 'done') {
       const timer = setTimeout(() => {
@@ -116,9 +107,7 @@ export default function SplashScreen({ onDone }) {
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
 
-  const isLoading  = ['idle', 'requesting', 'locating', 'checking'].includes(status);
-  const showDenied = status === 'denied';
-  const showError  = status === 'error';
+  const isLoading = ['idle', 'requesting'].includes(status);
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
@@ -151,47 +140,6 @@ export default function SplashScreen({ onDone }) {
               ))}
             </View>
           )}
-        </View>
-      )}
-
-      {/* ── Permission denied ────────────────────────────────────────────────── */}
-      {showDenied && (
-        <View style={styles.stateBox}>
-          <View style={styles.stateIconWrap}>
-            <Ionicons name="location-outline" size={32} color="rgba(255,255,255,0.65)" />
-          </View>
-          <Text style={styles.stateTitle}>Location access denied</Text>
-          <Text style={styles.stateSubtitle}>
-            Aileesa needs your location to check if we deliver to your area.
-            Please grant permission and try again.
-          </Text>
-          <TouchableOpacity style={styles.primaryBtn} onPress={retryLocation} activeOpacity={0.85}>
-            <Ionicons name="refresh-outline" size={16} color={ACCENT} />
-            <Text style={styles.primaryBtnText}>Try again</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.secondaryBtn} onPress={onDone} activeOpacity={0.75}>
-            <Text style={styles.secondaryBtnText}>Continue without location</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* ── Error state ──────────────────────────────────────────────────────── */}
-      {showError && (
-        <View style={styles.stateBox}>
-          <View style={styles.stateIconWrap}>
-            <Ionicons name="warning-outline" size={32} color="rgba(255,255,255,0.65)" />
-          </View>
-          <Text style={styles.stateTitle}>Something went wrong</Text>
-          <Text style={styles.stateSubtitle}>
-            We couldn't determine your location. Please check your connection and try again.
-          </Text>
-          <TouchableOpacity style={styles.primaryBtn} onPress={retryLocation} activeOpacity={0.85}>
-            <Ionicons name="refresh-outline" size={16} color={ACCENT} />
-            <Text style={styles.primaryBtnText}>Retry</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.secondaryBtn} onPress={onDone} activeOpacity={0.75}>
-            <Text style={styles.secondaryBtnText}>Continue without location</Text>
-          </TouchableOpacity>
         </View>
       )}
 

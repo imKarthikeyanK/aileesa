@@ -7,7 +7,7 @@
 
 import { MOCK_STORES, MOCK_STORE_DETAILS } from './mockData';
 import { getHeaders } from './requestHeaders';
-import { BASE_URL } from './env';
+import { AILEESA_API_URL as BASE_URL } from './env';
 
 // ─── Real API helpers ─────────────────────────────────────────────────────────
 
