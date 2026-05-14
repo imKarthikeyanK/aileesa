@@ -157,7 +157,7 @@ export default function BookingDetailScreen({ route, navigation }) {
   useEffect(() => { load(); }, [load]);
 
   const handleShare = async () => {
-    const message = `My Aileesa order #${order.id} — ₹${order.grandTotal} from ${order.storeName}.`;
+    const message = `My Aileesa order #${order.id} — ₹${order.grand_total} from ${order.store_name}.`;
     if (Platform.OS === 'web') {
       // navigator.share requires HTTPS and is not universally available;
       // fall back to clipboard copy when unavailable.
@@ -241,14 +241,14 @@ export default function BookingDetailScreen({ route, navigation }) {
           <Ionicons name={cfg.icon} size={22} color={cfg.color} />
           <View style={{ flex: 1 }}>
             <Text style={[styles.statusBannerTitle, { color: cfg.color }]}>{cfg.label}</Text>
-            {order.status === 'delivered' && order.deliveredAt && (
+            {order.status === 'delivered' && order.delivered_at && (
               <Text style={[styles.statusBannerSub, { color: cfg.color }]}>
-                Delivered on {formatDateTime(order.deliveredAt)}
+                Delivered on {formatDateTime(order.delivered_at)}
               </Text>
             )}
             {order.status === 'processing' && (
               <Text style={[styles.statusBannerSub, { color: cfg.color }]}>
-                Placed on {formatDateTime(order.createdAt)}
+                Placed on {formatDateTime(order.created_at)}
               </Text>
             )}
             {order.status === 'cancelled' && (
@@ -266,39 +266,39 @@ export default function BookingDetailScreen({ route, navigation }) {
 
         {/* ── Order items ───────────────────────────────────────────────── */}
         <SectionCard title="ORDER ITEMS">
-          <Text style={styles.storeName}>{order.storeName}</Text>
+          <Text style={styles.storeName}>{order.store_name}</Text>
           {order.items.map((item, idx) => (
             <View key={idx} style={styles.itemRow}>
-              <Text style={styles.itemQty}>{item.qty}×</Text>
+              <Text style={styles.itemQty}>{item.quantity}×</Text>
               <Text style={styles.itemName}>{item.name}</Text>
-              <Text style={styles.itemPrice}>₹{item.price * item.qty}</Text>
+              <Text style={styles.itemPrice}>₹{item.price * item.quantity}</Text>
             </View>
           ))}
           <Divider />
-          <InfoRow label="Subtotal"     value={`₹${order.subtotal}`} />
-          <InfoRow label="Delivery"     value={order.delivery === 0 ? 'FREE' : `₹${order.delivery}`} />
-          <InfoRow label="Platform fee" value={`₹${order.platform}`} />
+          <InfoRow label="Subtotal"     value={`₹${order.sub_total}`} />
+          <InfoRow label="Delivery"     value={order.delivery_fee === 0 ? 'FREE' : `₹${order.delivery_fee}`} />
+          <InfoRow label="Platform fee" value={`₹${order.platform_fee}`} />
           <Divider />
-          <InfoRow label="Total Paid"   value={`₹${order.grandTotal}`} bold />
+          <InfoRow label="Total Paid"   value={`₹${order.grand_total}`} bold />
         </SectionCard>
 
         {/* ── Payment info ──────────────────────────────────────────────── */}
         <SectionCard title="PAYMENT">
-          <InfoRow label="Method" value={order.paymentMethod} />
+          <InfoRow label="Method" value={order.payment_method} />
           <InfoRow
             label="Status"
-            value={order.paymentStatus.charAt(0).toUpperCase() + order.paymentStatus.slice(1)}
-            accent={order.paymentStatus === 'refunded'}
+            value={order.payment_status.charAt(0).toUpperCase() + order.payment_status.slice(1)}
+            accent={order.payment_status === 'refunded'}
           />
           <InfoRow label="Booking ID" value={order.id} />
-          <InfoRow label="Order Date"  value={formatDateTime(order.createdAt)} />
+          <InfoRow label="Order Date"  value={formatDateTime(order.created_at)} />
         </SectionCard>
 
         {/* ── Delivery address ──────────────────────────────────────────── */}
         <SectionCard title="DELIVERY ADDRESS">
           <View style={styles.addressRow}>
             <Ionicons name="location-outline" size={16} color={ACCENT} style={{ marginTop: 2 }} />
-            <Text style={styles.addressText}>{order.address}</Text>
+            <Text style={styles.addressText}>{order.delivery_info?.address}</Text>
           </View>
         </SectionCard>
 
@@ -309,13 +309,13 @@ export default function BookingDetailScreen({ route, navigation }) {
               icon="receipt-outline"
               label="Invoice"
               onPress={() => {}}
-              disabled={!order.invoiceUrl}
+              disabled={!order.invoice_url}
             />
             <ActionBtn
               icon="document-text-outline"
               label="Bill"
               onPress={() => {}}
-              disabled={!order.invoiceUrl}
+              disabled={!order.invoice_url}
             />
             <ActionBtn
               icon="logo-whatsapp"

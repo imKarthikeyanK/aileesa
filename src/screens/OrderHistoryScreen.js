@@ -44,7 +44,7 @@ function OrderCard({ order, onPress }) {
   const cfg = STATUS_CONFIG[order.status] ?? STATUS_CONFIG.processing;
   const itemSummary = order.items
     .slice(0, 2)
-    .map(i => `${i.name}${i.qty > 1 ? ` ×${i.qty}` : ''}`)
+    .map(i => `${i.name}${i.quantity > 1 ? ` ×${i.quantity}` : ''}`)
     .join(', ') + (order.items.length > 2 ? ` +${order.items.length - 2} more` : '');
 
   return (
@@ -52,8 +52,8 @@ function OrderCard({ order, onPress }) {
       {/* Top row */}
       <View style={styles.cardTop}>
         <View>
-          <Text style={styles.cardStore}>{order.storeName}</Text>
-          <Text style={styles.cardDate}>{formatDate(order.createdAt)}</Text>
+          <Text style={styles.cardStore}>{order.store_name}</Text>
+          <Text style={styles.cardDate}>{formatDate(order.created_at)}</Text>
         </View>
         <View style={[styles.statusPill, { backgroundColor: cfg.bg }]}>
           <Ionicons name={cfg.icon} size={11} color={cfg.color} />
@@ -66,7 +66,7 @@ function OrderCard({ order, onPress }) {
 
       {/* Bottom row */}
       <View style={styles.cardBottom}>
-        <Text style={styles.cardTotal}>₹{order.grandTotal}</Text>
+        <Text style={styles.cardTotal}>₹{order.grand_total}</Text>
         <View style={styles.cardCta}>
           <Text style={styles.cardCtaText}>View Details</Text>
           <Ionicons name="chevron-forward" size={13} color={ACCENT} />

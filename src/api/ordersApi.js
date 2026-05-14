@@ -34,24 +34,30 @@ async function _post(path, body, { accessToken } = {}) {
 const _orders = [
   {
     id: 'BK-2025-0412',
-    createdAt: '2025-04-12T10:32:00.000Z',
-    storeId: '1',
-    storeName: 'Green Basket',
+    created_at: '2025-04-12T10:32:00.000Z',
+    store_id: '1',
+    store_name: 'Green Basket',
     items: [
-      { name: 'Amul Butter (100 g)', qty: 2, price: 56 },
-      { name: 'Full Cream Milk (500 ml)', qty: 1, price: 32 },
-      { name: 'Brown Bread', qty: 1, price: 45 },
+      { id: 'item_001', product_id: 'p1', variant_id: 'v1', sku_code: 'SKU-001', name: 'Amul Butter (100 g)',         quantity: 2, price: 56,  base_price: 60  },
+      { id: 'item_002', product_id: 'p2', variant_id: 'v2', sku_code: 'SKU-002', name: 'Full Cream Milk (500 ml)',    quantity: 1, price: 32,  base_price: 35  },
+      { id: 'item_003', product_id: 'p3', variant_id: 'v3', sku_code: 'SKU-003', name: 'Brown Bread',                quantity: 1, price: 45,  base_price: 45  },
     ],
-    subtotal: 189,
-    delivery: 29,
-    platform: 5,
-    grandTotal: 223,
+    sub_total:    133,
+    tax:          16,
+    delivery_fee: 29,
+    platform_fee: 5,
+    grand_total:  183,
     status: 'delivered',
-    deliveredAt: '2025-04-12T11:04:00.000Z',
-    address: '14, Sunrise Apartments, Anna Nagar, Chennai - 600040',
-    paymentMethod: 'UPI',
-    paymentStatus: 'paid',
-    invoiceUrl: null,
+    delivered_at: '2025-04-12T11:04:00.000Z',
+    delivery_info: {
+      address: '14, Sunrise Apartments, Anna Nagar, Chennai - 600040',
+      lat: 13.0827,
+      lng: 80.2707,
+    },
+    payment_method: 'UPI',
+    payment_status: 'paid',
+    delivery_time: '20-25',
+    invoice_url: null,
     tracking: [
       { label: 'Order Placed',      done: true,  time: '10:32 AM' },
       { label: 'Store Confirmed',   done: true,  time: '10:34 AM' },
@@ -62,23 +68,29 @@ const _orders = [
   },
   {
     id: 'BK-2025-0389',
-    createdAt: '2025-04-05T14:18:00.000Z',
-    storeId: '2',
-    storeName: 'The Bread Box',
+    created_at: '2025-04-05T14:18:00.000Z',
+    store_id: '2',
+    store_name: 'The Bread Box',
     items: [
-      { name: 'Sourdough Loaf', qty: 1, price: 160 },
-      { name: 'Butter Croissant (2 pcs)', qty: 1, price: 90 },
+      { id: 'item_010', product_id: 'p10', variant_id: 'v10', sku_code: 'SKU-010', name: 'Sourdough Loaf',             quantity: 1, price: 160, base_price: 160 },
+      { id: 'item_011', product_id: 'p11', variant_id: 'v11', sku_code: 'SKU-011', name: 'Butter Croissant (2 pcs)',   quantity: 1, price: 90,  base_price: 90  },
     ],
-    subtotal: 250,
-    delivery: 0,
-    platform: 5,
-    grandTotal: 255,
+    sub_total:    250,
+    tax:          0,
+    delivery_fee: 0,
+    platform_fee: 5,
+    grand_total:  255,
     status: 'delivered',
-    deliveredAt: '2025-04-05T14:55:00.000Z',
-    address: '14, Sunrise Apartments, Anna Nagar, Chennai - 600040',
-    paymentMethod: 'Cash on Delivery',
-    paymentStatus: 'paid',
-    invoiceUrl: null,
+    delivered_at: '2025-04-05T14:55:00.000Z',
+    delivery_info: {
+      address: '14, Sunrise Apartments, Anna Nagar, Chennai - 600040',
+      lat: 13.0827,
+      lng: 80.2707,
+    },
+    payment_method: 'Cash on Delivery',
+    payment_status: 'paid',
+    delivery_time: '20-25',
+    invoice_url: null,
     tracking: [
       { label: 'Order Placed',      done: true,  time: '2:18 PM' },
       { label: 'Store Confirmed',   done: true,  time: '2:20 PM' },
@@ -89,23 +101,29 @@ const _orders = [
   },
   {
     id: 'BK-2025-0301',
-    createdAt: '2025-03-21T08:05:00.000Z',
-    storeId: '1',
-    storeName: 'Green Basket',
+    created_at: '2025-03-21T08:05:00.000Z',
+    store_id: '1',
+    store_name: 'Green Basket',
     items: [
-      { name: 'Tata Salt (1 kg)',   qty: 1, price: 28 },
-      { name: 'Fortune Sunflower Oil (1 L)', qty: 1, price: 145 },
+      { id: 'item_020', product_id: 'p20', variant_id: 'v20', sku_code: 'SKU-020', name: 'Tata Salt (1 kg)',           quantity: 1, price: 28,  base_price: 30  },
+      { id: 'item_021', product_id: 'p21', variant_id: 'v21', sku_code: 'SKU-021', name: 'Fortune Sunflower Oil (1 L)', quantity: 1, price: 145, base_price: 150 },
     ],
-    subtotal: 173,
-    delivery: 29,
-    platform: 5,
-    grandTotal: 207,
+    sub_total:    173,
+    tax:          0,
+    delivery_fee: 29,
+    platform_fee: 5,
+    grand_total:  207,
     status: 'cancelled',
-    deliveredAt: null,
-    address: '14, Sunrise Apartments, Anna Nagar, Chennai - 600040',
-    paymentMethod: 'UPI',
-    paymentStatus: 'refunded',
-    invoiceUrl: null,
+    delivered_at: null,
+    delivery_info: {
+      address: '14, Sunrise Apartments, Anna Nagar, Chennai - 600040',
+      lat: 13.0827,
+      lng: 80.2707,
+    },
+    payment_method: 'UPI',
+    payment_status: 'refunded',
+    delivery_time: '20-25',
+    invoice_url: null,
     tracking: [
       { label: 'Order Placed',      done: true,  time: '8:05 AM' },
       { label: 'Store Confirmed',   done: false, time: null },
@@ -147,7 +165,7 @@ export const OrdersAPI = {
   async getOrders() {
     await new Promise(r => setTimeout(r, MOCK_DELAY));
     return [..._orders].sort(
-      (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
+      (a, b) => new Date(b.created_at) - new Date(a.created_at),
     );
   },
 
@@ -162,30 +180,31 @@ export const OrdersAPI = {
   },
 
   /**
-   * POST /orders
+   * POST /orders/place-order
    * Places a new order and returns the created booking.
    */
-  async placeOrder({ items, subtotal, delivery, platform, grandTotal, storeGroups }) {
+  async placeOrder({ store_id, store_name, business_id, items, sub_total, tax, delivery_fee, platform_fee, grand_total, payment_method, delivery_info, delivery_time }) {
     await new Promise(r => setTimeout(r, 1400));
 
-    const now     = new Date().toISOString();
-    const store   = storeGroups?.[0] ?? {};
+    const now      = new Date().toISOString();
     const newOrder = {
       id:            `BK-${makeid(6)}`,
-      createdAt:     now,
-      storeId:       store.storeId ?? 'unknown',
-      storeName:     store.storeName ?? 'Store',
-      items:         items.map(i => ({ name: i.name, qty: i.quantity, price: i.price })),
-      subtotal,
-      delivery,
-      platform,
-      grandTotal,
+      created_at:    now,
+      store_id:      store_id ?? 'unknown',
+      store_name:    store_name ?? 'Store',
+      items,
+      sub_total,
+      tax:           tax ?? 0,
+      delivery_fee,
+      platform_fee,
+      grand_total,
       status:        'processing',
-      deliveredAt:   null,
-      address:       '14, Sunrise Apartments, Anna Nagar, Chennai - 600040',
-      paymentMethod: 'UPI',
-      paymentStatus: 'paid',
-      invoiceUrl:    null,
+      delivered_at:  null,
+      delivery_info,
+      payment_method: payment_method ?? 'COD',
+      payment_status: 'paid',
+      delivery_time,
+      invoice_url:   null,
       tracking:      buildTracking(now),
     };
 

@@ -95,12 +95,12 @@ export default function SplashScreen({ onDone }) {
       const timer = setTimeout(() => {
         Animated.timing(screenOpacity, {
           toValue:         0,
-          duration:        420,
+          duration:        210,
           useNativeDriver: true,
         }).start(({ finished }) => {
           if (finished) onDone?.();
         });
-      }, 700);
+      }, 350);
       return () => clearTimeout(timer);
     }
   }, [status, screenOpacity, onDone]);
