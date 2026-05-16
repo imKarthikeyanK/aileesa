@@ -22,6 +22,7 @@ import Navigation from './src/navigation/Navigation';
 import { CartProvider } from './src/context/CartContext';
 import { LocationProvider } from './src/context/LocationContext';
 import { AuthProvider } from './src/context/AuthContext';
+import { AddressProvider } from './src/context/AddressContext';
 import SplashScreen from './src/screens/SplashScreen';
 import CartConflictModal from './src/components/CartConflictModal';
 
@@ -35,12 +36,14 @@ export default function App() {
           <LocationProvider>
             <ThemeProvider>
               <CartProvider>
-                <StatusBar style="light" translucent />
-                <Navigation />
-                <CartConflictModal />
-                {!splashDone && (
-                  <SplashScreen onDone={() => setSplashDone(true)} />
-                )}
+                <AddressProvider>
+                  <StatusBar style="light" translucent />
+                  <Navigation />
+                  <CartConflictModal />
+                  {!splashDone && (
+                    <SplashScreen onDone={() => setSplashDone(true)} />
+                  )}
+                </AddressProvider>
               </CartProvider>
             </ThemeProvider>
           </LocationProvider>

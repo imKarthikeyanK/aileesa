@@ -30,7 +30,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocation } from '../context/LocationContext';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTabBar } from '../context/TabBarContext';
-import { saveAddress } from '../api/addressApi';
+import { useAddress } from '../context/AddressContext';
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 
@@ -69,6 +69,7 @@ const DEFAULT_REGION = {
 export default function LocationPickerScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { coords } = useLocation();
+  const { createAndSelectAddress } = useAddress();
 
   // ── Hide bottom tab bar while on this screen ──────────────────────────────
   const { hideTabBar, showTabBar } = useTabBar();
@@ -96,8 +97,10 @@ export default function LocationPickerScreen({ navigation }) {
   const [city,        setCity]       = useState('');
   const [stateVal,    setStateVal]   = useState('');
   const [pincode,     setPincode]    = useState('');
-  const [addressType, setAddressType] = useState('home');
-  const [customName,  setCustomName] = useState('');
+  const [addressType,   setAddressType]   = useState('home');
+  const [customName,    setCustomName]    = useState('');
+  const [receiverName,  setReceiverName]  = useState('');
+  const [receiverPhone, setReceiverPhone] = useState('');
 
   const [errors,  setErrors]  = useState({});
   const [saving,  setSaving]  = useState(false);
@@ -150,11 +153,13 @@ export default function LocationPickerScreen({ navigation }) {
 
   const validate = () => {
     const e = {};
-    if (!houseNo.trim())                          e.houseNo    = 'Required';
-    if (!city.trim())                             e.city       = 'Required';
-    if (!stateVal.trim())                         e.stateVal   = 'Required';
-    if (!pincode.trim())                          e.pincode    = 'Required';
-    if (addressType === 'other' && !customName.trim()) e.customName = 'Required';
+    if (!houseNo.trim())                               e.houseNo      = 'Required';
+    if (!city.trim())                                  e.city         = 'Required';
+    if (!stateVal.trim())                              e.stateVal     = 'Required';
+    if (!pincode.trim())                               e.pincode      = 'Required';
+    if (addressType === 'other' && !customName.trim()) e.customName   = 'Required';
+    if (!receiverName.trim())                          e.receiverName = 'Required';
+    if (!/^[6-9]\d{9}$/.test(receiverPhone.trim()))   e.receiverPhone = 'Enter a valid 10-digit mobile number';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -166,21 +171,22 @@ export default function LocationPickerScreen({ navigation }) {
     setSaving(true);
     setSaveErr('');
     try {
-      const typeName = addressType === 'other'
+      const label = addressType === 'other'
         ? customName.trim()
         : ADDRESS_TYPES.find(t => t.id === addressType)?.label ?? 'Home';
 
-      await saveAddress({
-        latitude:    region.latitude,
-        longitude:   region.longitude,
-        fullAddress: detectedAddress,
-        houseNo:     houseNo.trim(),
-        landmark:    landmark.trim(),
-        city:        city.trim(),
-        state:       stateVal.trim(),
-        pincode:     pincode.trim(),
-        type:        addressType,
-        name:        typeName,
+      await createAndSelectAddress({
+        lat:            region.latitude,
+        lng:            region.longitude,
+        address_line_1: houseNo.trim(),
+        address_line_2: '',
+        landmark:       landmark.trim(),
+        city:           city.trim(),
+        state:          stateVal.trim(),
+        pincode:        pincode.trim(),
+        label,
+        receiver_name:  receiverName.trim(),
+        receiver_phone: receiverPhone.trim(),
       });
       setSaved(true);
       // Brief success flash then go back
@@ -329,6 +335,26 @@ export default function LocationPickerScreen({ navigation }) {
             value={stateVal}
             onChangeText={setStateVal}
             error={errors.stateVal}
+          />
+
+          {/* Receiver details */}
+          <Field
+            label="Receiver name"
+            required
+            placeholder="Full name"
+            value={receiverName}
+            onChangeText={setReceiverName}
+            error={errors.receiverName}
+          />
+          <Field
+            label="Receiver phone"
+            required
+            placeholder="10-digit mobile number"
+            value={receiverPhone}
+            onChangeText={setReceiverPhone}
+            keyboardType="phone-pad"
+            maxLength={10}
+            error={errors.receiverPhone}
           />
 
           {/* Address type selector */}

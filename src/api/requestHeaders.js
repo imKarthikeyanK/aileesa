@@ -139,6 +139,7 @@ export function getHeaders({ accessToken } = {}) {
 
   if (accessToken) {
     headers['Authorization'] = `Bearer ${accessToken}`;
+    headers['x-oz-token']    = accessToken;
   }
 
   if (platform === 'web') {

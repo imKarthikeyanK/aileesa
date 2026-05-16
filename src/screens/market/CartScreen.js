@@ -16,6 +16,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import {
   ActivityIndicator,
   Animated,
+  Modal,
+  Pressable,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -28,6 +30,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useCart } from '../../context/CartContext';
 import { useTabBar } from '../../context/TabBarContext';
 import { useAuth } from '../../context/AuthContext';
+import { useAddress } from '../../context/AddressContext';
 import AuthSheet from '../../components/auth/AuthSheet';
 import { OrdersAPI } from '../../api/ordersApi';
 
@@ -50,6 +53,91 @@ const FREE_DELIVERY_ABOVE  = 199;  // free delivery at/above this subtotal
 const MIN_ORDER_VALUE      = 149;  // orders below this cannot be placed
 const PLATFORM_FEE         = 5;
 const GST_RATE             = 0.05;
+
+// ─── AddressPicker sheet ───────────────────────────────────────────────────────
+
+function AddressPickerSheet({ visible, onClose, onNavigateToAdd }) {
+  const { addresses, selectedAddress, selectAddress, isLoading } = useAddress();
+  const insets = useSafeAreaInsets();
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <Pressable style={addrStyles.overlay} onPress={onClose} />
+      <View style={[addrStyles.sheet, { paddingBottom: insets.bottom + 16 }]}>
+        <View style={addrStyles.handle} />
+        <Text style={addrStyles.sheetTitle}>Deliver to</Text>
+
+        {isLoading ? (
+          <ActivityIndicator color={ACCENT} style={{ marginVertical: 24 }} />
+        ) : addresses.length === 0 ? (
+          <Text style={addrStyles.empty}>No saved addresses.</Text>
+        ) : (
+          addresses.map(addr => {
+            const isSel = selectedAddress?.id === addr.id;
+            return (
+              <TouchableOpacity
+                key={addr.id}
+                style={[addrStyles.addrRow, isSel && addrStyles.addrRowSel]}
+                onPress={() => { selectAddress(addr); onClose(); }}
+                activeOpacity={0.8}
+              >
+                <View style={addrStyles.addrIconWrap}>
+                  <Ionicons
+                    name={addr.label?.toLowerCase() === 'home' ? 'home-outline' : addr.label?.toLowerCase() === 'office' ? 'briefcase-outline' : 'location-outline'}
+                    size={18}
+                    color={isSel ? ACCENT : TEXT_SEC}
+                  />
+                </View>
+                <View style={addrStyles.addrTextWrap}>
+                  <Text style={[addrStyles.addrLabel, isSel && addrStyles.addrLabelSel]}>
+                    {addr.label}
+                  </Text>
+                  <Text style={addrStyles.addrLine} numberOfLines={2}>
+                    {addr.formatted_address}
+                  </Text>
+                </View>
+                {isSel && (
+                  <Ionicons name="checkmark-circle" size={20} color={ACCENT} />
+                )}
+              </TouchableOpacity>
+            );
+          })
+        )}
+
+        <TouchableOpacity
+          style={addrStyles.addBtn}
+          onPress={() => { onClose(); onNavigateToAdd(); }}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="add-circle-outline" size={18} color={ACCENT} />
+          <Text style={addrStyles.addBtnText}>Add new address</Text>
+        </TouchableOpacity>
+      </View>
+    </Modal>
+  );
+}
+
+const addrStyles = StyleSheet.create({
+  overlay:     { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.35)' },
+  sheet:       { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: WHITE, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 16, paddingTop: 12 },
+  handle:      { width: 36, height: 4, borderRadius: 2, backgroundColor: BORDER, alignSelf: 'center', marginBottom: 16 },
+  sheetTitle:  { fontSize: 16, fontWeight: '700', color: TEXT_PRI, marginBottom: 12 },
+  empty:       { fontSize: 14, color: TEXT_MUTED, textAlign: 'center', marginVertical: 20 },
+  addrRow:     { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 12, borderRadius: 12, marginBottom: 8, backgroundColor: BG, gap: 12 },
+  addrRowSel:  { backgroundColor: '#EDE7F6', borderWidth: 1, borderColor: ACCENT },
+  addrIconWrap:{ width: 36, height: 36, borderRadius: 18, backgroundColor: WHITE, alignItems: 'center', justifyContent: 'center' },
+  addrTextWrap:{ flex: 1 },
+  addrLabel:   { fontSize: 14, fontWeight: '600', color: TEXT_PRI },
+  addrLabelSel:{ color: ACCENT },
+  addrLine:    { fontSize: 12, color: TEXT_SEC, marginTop: 2 },
+  addBtn:      { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 14, justifyContent: 'center' },
+  addBtnText:  { fontSize: 14, fontWeight: '600', color: ACCENT },
+});
 
 // ─── CartItemRow ───────────────────────────────────────────────────────────────
 
@@ -196,8 +284,10 @@ export default function CartScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { items, addItem, removeItem, clearCart } = useCart();
   const { isAuthenticated } = useAuth();
-  const [placing, setPlacing]     = useState(false);
-  const [authSheet, setAuthSheet] = useState(false);
+  const { selectedAddress, isLoading: addrLoading } = useAddress();
+  const [placing, setPlacing]         = useState(false);
+  const [authSheet, setAuthSheet]     = useState(false);
+  const [addrSheet, setAddrSheet]     = useState(false);
   const pendingOrder = useRef(false);  // true when user hit Place Order before login
 
   // Auto-trigger place order once user logs in from the auth sheet
@@ -268,8 +358,17 @@ export default function CartScreen({ navigation }) {
       setAuthSheet(true);
       return;
     }
+    if (!selectedAddress) {
+      navigation.navigate('LocationPicker');
+      return;
+    }
     setPlacing(true);
     try {
+      const deliveryInfo = {
+        address: selectedAddress.formatted_address ?? selectedAddress.address_line_1,
+        lat:     selectedAddress.lat,
+        lng:     selectedAddress.lng,
+      };
       const order = await OrdersAPI.placeOrder({
         items,
         subtotal,
@@ -277,6 +376,7 @@ export default function CartScreen({ navigation }) {
         platform,
         grandTotal,
         storeGroups,
+        delivery_info: deliveryInfo,
       });
       clearCart();
       navigation.replace('BookingDetail', { bookingId: order.id });
@@ -320,7 +420,44 @@ export default function CartScreen({ navigation }) {
         contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Store groups */}
+        {/* ── Delivery address ──────────────────────────────────────────── */}
+        <View style={styles.addressCard}>
+          <View style={styles.addressCardHeader}>
+            <View style={styles.addressCardLeft}>
+              <Ionicons name="location" size={15} color={ACCENT} />
+              <Text style={styles.addressCardTitle}>Deliver to</Text>
+            </View>
+            {isAuthenticated && (
+              <TouchableOpacity onPress={() => setAddrSheet(true)} activeOpacity={0.7}>
+                <Text style={styles.addressChangeBtn}>Change</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          {selectedAddress ? (
+            <>
+              <Text style={styles.addressLabel}>{selectedAddress.label}</Text>
+              <Text style={styles.addressLine} numberOfLines={2}>
+                {selectedAddress.formatted_address ?? selectedAddress.address_line_1}
+              </Text>
+              {selectedAddress.receiver_name ? (
+                <Text style={styles.addressReceiver}>
+                  {selectedAddress.receiver_name} · {selectedAddress.receiver_phone}
+                </Text>
+              ) : null}
+            </>
+          ) : (
+            <TouchableOpacity
+              style={styles.addAddressRow}
+              onPress={() => navigation.navigate('LocationPicker')}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="add-circle-outline" size={16} color={ACCENT} />
+              <Text style={styles.addAddressText}>Add a delivery address</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* ── Store groups */}
         {storeGroups.map((group, gIdx) => (
           <View key={group.storeId}>
             {/* Store banner */}
@@ -486,6 +623,11 @@ export default function CartScreen({ navigation }) {
       </View>
     </View>
     <AuthSheet visible={authSheet} onClose={() => setAuthSheet(false)} />
+    <AddressPickerSheet
+      visible={addrSheet}
+      onClose={() => setAddrSheet(false)}
+      onNavigateToAdd={() => navigation.navigate('LocationPicker')}
+    />
     </>
   );
 }
@@ -869,6 +1011,65 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: TEXT_MUTED,
     lineHeight: 17,
+  },
+
+  // ── Address card ─────────────────────────────────────────────────────────────
+  addressCard: {
+    backgroundColor: SURFACE,
+    marginHorizontal: 16,
+    marginTop: 12,
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: StyleSheet.hairlineWidth * 2,
+    borderColor: BORDER,
+  },
+  addressCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  addressCardLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  addressCardTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: TEXT_SEC,
+  },
+  addressChangeBtn: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: ACCENT,
+  },
+  addressLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: TEXT_PRI,
+    marginBottom: 2,
+  },
+  addressLine: {
+    fontSize: 13,
+    color: TEXT_SEC,
+    lineHeight: 18,
+  },
+  addressReceiver: {
+    fontSize: 12,
+    color: TEXT_MUTED,
+    marginTop: 4,
+  },
+  addAddressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 4,
+  },
+  addAddressText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: ACCENT,
   },
 
   // ── Sticky CTA ───────────────────────────────────────────────────────────────
