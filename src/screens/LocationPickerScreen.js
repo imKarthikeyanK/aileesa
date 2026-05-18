@@ -217,13 +217,8 @@ export default function LocationPickerScreen({ navigation }) {
         <View style={styles.backBtn} />
       </View>
 
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={insets.top + 56}
-      >
-        {/* ── Map ─────────────────────────────────────────────────────────── */}
-        <View style={styles.mapWrapper}>
+      {/* ── Map ─────────────────────────────────────────────────────────── */}
+      <View style={styles.mapWrapper}>
           <MapView
             style={styles.map}
             provider={PROVIDER_GOOGLE}
@@ -259,8 +254,8 @@ export default function LocationPickerScreen({ navigation }) {
           )}
         </View>
 
-        {/* ── Detected address strip ──────────────────────────────────────── */}
-        <View style={styles.detectedStrip}>
+      {/* ── Detected address strip ──────────────────────────────────────── */}
+      <View style={styles.detectedStrip}>
           <View style={styles.detectedIconWrap}>
             <Ionicons name="navigate-circle" size={22} color={ACCENT} />
           </View>
@@ -272,8 +267,13 @@ export default function LocationPickerScreen({ navigation }) {
                 : detectedAddress || 'Move the pin to your exact location'}
             </Text>
           </View>
-        </View>
+      </View>
 
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={0}
+      >
         {/* ── Address form ────────────────────────────────────────────────── */}
         <ScrollView
           style={styles.form}

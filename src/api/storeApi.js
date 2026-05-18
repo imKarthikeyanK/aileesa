@@ -6,16 +6,13 @@
  */
 
 import { MOCK_STORES, MOCK_STORE_DETAILS } from './mockData';
-import { getHeaders } from './requestHeaders';
-import { AILEESA_API_URL as BASE_URL } from './env';
+import { AILEESA_API_URL as BASE_URL, USE_MOCK } from './env';
+import { httpGet } from './httpClient';
 
 // ─── Real API helpers ─────────────────────────────────────────────────────────
 
-async function _get(path) {
-  const res = await fetch(`${BASE_URL}${path}`, { headers: getHeaders() });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message ?? 'Request failed');
-  return data;
+function _get(path) {
+  return httpGet(`${BASE_URL}${path}`);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -33,28 +30,34 @@ function delay() {
  * @returns {Promise<{ data: object[], pagination: object }>}
  */
 export async function getStores({ page = 1, category = null } = {}) {
-  await delay();
+  if (USE_MOCK) {
+    await delay();
 
-  const filtered =
-    category && category !== 'all'
-      ? MOCK_STORES.filter(s => s.category === category)
-      : MOCK_STORES;
+    const filtered =
+      category && category !== 'all'
+        ? MOCK_STORES.filter(s => s.category === category)
+        : MOCK_STORES;
 
-  const total = filtered.length;
-  const totalPages = Math.ceil(total / PER_PAGE) || 1;
-  const start = (page - 1) * PER_PAGE;
-  const data = filtered.slice(start, start + PER_PAGE);
+    const total = filtered.length;
+    const totalPages = Math.ceil(total / PER_PAGE) || 1;
+    const start = (page - 1) * PER_PAGE;
+    const data = filtered.slice(start, start + PER_PAGE);
 
-  return {
-    data,
-    pagination: {
-      page,
-      per_page: PER_PAGE,
-      total,
-      total_pages: totalPages,
-      has_next: page < totalPages,
-    },
-  };
+    return {
+      data,
+      pagination: {
+        page,
+        per_page: PER_PAGE,
+        total,
+        total_pages: totalPages,
+        has_next: page < totalPages,
+      },
+    };
+  }
+
+  const params = new URLSearchParams({ page });
+  if (category && category !== 'all') params.set('category', category);
+  return _get(`/stores?${params.toString()}`);
 }
 
 /**
@@ -64,12 +67,16 @@ export async function getStores({ page = 1, category = null } = {}) {
  * @returns {Promise<{ data: object }>}
  */
 export async function getStoreDetail(storeId) {
-  await delay();
+  if (USE_MOCK) {
+    await delay();
 
-  const store = MOCK_STORE_DETAILS[storeId];
-  if (!store) {
-    throw new Error(`Store "${storeId}" not found.`);
+    const store = MOCK_STORE_DETAILS[storeId];
+    if (!store) {
+      throw new Error(`Store "${storeId}" not found.`);
+    }
+
+    return { data: store };
   }
 
-  return { data: store };
+  return _get(`/stores/${storeId}`);
 }

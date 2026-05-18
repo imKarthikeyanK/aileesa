@@ -9,20 +9,13 @@
  *       All other coordinates → not serviceable.
  */
 
-import { getHeaders } from './requestHeaders';
-import { AILEESA_API_URL as BASE_URL } from './env';
+import { AILEESA_API_URL as BASE_URL, USE_MOCK } from './env';
+import { httpPost } from './httpClient';
 
 // ─── Real API helpers ─────────────────────────────────────────────────────────
 
-async function _post(path, body) {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    method: 'POST',
-    headers: getHeaders(),
-    body: JSON.stringify(body),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message ?? 'Request failed');
-  return data;
+function _post(path, body) {
+  return httpPost(`${BASE_URL}${path}`, body);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -80,35 +73,22 @@ const SERVICEABLE_ZONES = [
  * and let the bounding-box logic run.
  */
 export async function checkServiceability({ latitude, longitude }) {
-  await new Promise(res => setTimeout(res, DELAY_MS));
+  if (USE_MOCK) {
+    await new Promise(res => setTimeout(res, DELAY_MS));
 
-  // ── DEV override: always serviceable ──────────────────────────────────────
-  // Remove or comment this block to re-enable real bounding-box checks.
-  const devMatch = SERVICEABLE_ZONES.find(
-    z =>
-      latitude  >= z.lat[0] && latitude  <= z.lat[1] &&
-      longitude >= z.lng[0] && longitude <= z.lng[1],
-  ) ?? SERVICEABLE_ZONES[0]; // default to Bangalore when outside all zones
+    const devMatch = SERVICEABLE_ZONES.find(
+      z =>
+        latitude  >= z.lat[0] && latitude  <= z.lat[1] &&
+        longitude >= z.lng[0] && longitude <= z.lng[1],
+    ) ?? SERVICEABLE_ZONES[0]; // default to Bangalore when outside all zones
 
-  return {
-    serviceable: true,
-    city:        devMatch.name,
-    zone:        devMatch.zone,
-    message:     `Aileesa delivers in ${devMatch.name}!`,
-  };
-
-  /* ── Production bounding-box logic (unreachable in dev) ────────────────────
-  const match = SERVICEABLE_ZONES.find(
-    z =>
-      latitude  >= z.lat[0] && latitude  <= z.lat[1] &&
-      longitude >= z.lng[0] && longitude <= z.lng[1],
-  );
-
-  if (match) {
-    return { serviceable: true, city: match.name, zone: match.zone,
-             message: `Aileesa delivers in ${match.name}!` };
+    return {
+      serviceable: true,
+      city:        devMatch.name,
+      zone:        devMatch.zone,
+      message:     `Aileesa delivers in ${devMatch.name}!`,
+    };
   }
-  return { serviceable: false, city: null, zone: null,
-           message: "We're not in your area yet — but expanding rapidly!" };
-  ─────────────────────────────────────────────────────────────────────────── */
+
+  return _post('/serviceability', { lat: latitude, lng: longitude });
 }

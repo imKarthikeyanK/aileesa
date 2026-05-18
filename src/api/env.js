@@ -34,7 +34,7 @@ const ENVIRONMENTS = {
   dev: {
     name:       'dev',
     label:      'Development',
-    apiBaseUrl: 'https://api-dev.aileesa.com',
+    apiBaseUrl: 'https://db50-2406-7400-11d-780a-94e3-e4a0-9939-9b7.ngrok-free.app',
     /** Show dev-only UI (mock OTP banner, env badge, etc.) */
     debugUI:    true,
     /** Default auth provider when ACTIVE_PROVIDER in authApi.js is not 'real' */
@@ -44,7 +44,7 @@ const ENVIRONMENTS = {
   sbox: {
     name:       'sbox',
     label:      'Sandbox',
-    apiBaseUrl: 'https://api-sbox.aileesa.com',
+    apiBaseUrl: 'https://db50-2406-7400-11d-780a-94e3-e4a0-9939-9b7.ngrok-free.app',
     debugUI:    false,
     mockAuth:   false,
   },
@@ -94,3 +94,15 @@ export const AILEESA_API_URL = `${BASE_URL}/aileesa/external/v1`;
 export const IS_DEV  = ENV.name === 'dev';
 export const IS_SBOX = ENV.name === 'sbox';
 export const IS_PROD = ENV.name === 'prod';
+
+/**
+ * USE_MOCK — master toggle for all API mock implementations.
+ *
+ * true  → every API module uses its local mock / in-memory data.
+ * false → every API module calls the real backend endpoints.
+ *
+ * Intentionally independent of the active environment so you can run
+ * real APIs against dev/sbox or mocks against any env during debugging.
+ * Change only this one line to flip the entire app.
+ */
+export const USE_MOCK = false;

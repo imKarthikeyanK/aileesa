@@ -24,6 +24,7 @@ import {
   Animated,
   Dimensions,
   FlatList,
+  Image,
   Platform,
   StatusBar,
   StyleSheet,
@@ -124,6 +125,7 @@ function InventoryCard({ item, storeId, storeName, storeClosed }) {
       icon:                  item.icon,
       icon_bg:               item.icon_bg,
       icon_color:            item.icon_color,
+      image_url:             _imageUri(item.image_url),
       storeId,
       storeName,
       max_quantity_per_item: item.max_quantity_per_item,
@@ -141,11 +143,14 @@ function InventoryCard({ item, storeId, storeName, storeClosed }) {
     <View style={[styles.productCard, cardInactive && styles.productCardInactive]}>
       {/* Icon swatch */}
       <View style={[styles.swatch, { backgroundColor: item.icon_bg ?? '#F0F1F8' }]}>
-        <Ionicons
-          name={item.icon ?? 'cube-outline'}
-          size={28}
-          color={cardInactive ? TEXT_MUTED : (item.icon_color ?? ACCENT)}
-        />
+        {item.image_url
+          ? <Image source={{ uri: _imageUri(item.image_url) }} style={styles.swatchImage} resizeMode="cover" />
+          : <Ionicons
+              name={item.icon ?? 'cube-outline'}
+              size={28}
+              color={cardInactive ? TEXT_MUTED : (item.icon_color ?? ACCENT)}
+            />
+        }
         {item.badge && item.active && !storeClosed && (
           <View style={[styles.swatchBadge, { backgroundColor: badgeBg }]}>
             <Text style={[styles.swatchBadgeText, { color: badgeColor }]}>
@@ -288,11 +293,22 @@ export default function StoreDetailScreen({ route, navigation }) {
     setInvLoading(true);
     try {
       const res = await getInventories({ storeId: routeStore.id, page: pageNum });
-      setSections(prev => pageNum === 1 ? res.data : [...prev, ...res.data]);
-      invHasNextRef.current = res.pagination.has_next;
+      console.log('[SDS] inventory raw response page', pageNum, ':', JSON.stringify(res, null, 2));
+      // Real API uses { section: "Name", items: [...] }; mock uses { id, title, items }.
+      // Normalise both shapes into { id, title, items }.
+      const rawRows    = Array.isArray(res.data) ? res.data : [];
+      const rows       = rawRows.map((s, i) => ({
+        id:    s.id    ?? `section-${i}`,
+        title: s.title ?? s.section ?? `Section ${i + 1}`,
+        items: Array.isArray(s.items) ? s.items : [],
+      }));
+      const pagination = res.pagination && typeof res.pagination === 'object' ? res.pagination : {};
+      setSections(prev => pageNum === 1 ? rows : [...prev, ...rows]);
+      invHasNextRef.current = pagination.has_next ?? false;
       invPageRef.current    = pageNum;
-      setInvHasNext(res.pagination.has_next);
-    } catch {
+      setInvHasNext(pagination.has_next ?? false);
+    } catch (e) {
+      console.error('[fetchInventory] page', pageNum, e);
       showToast('Could not load products. Please try again.');
     } finally {
       isLoadingInvRef.current = false;
@@ -313,11 +329,32 @@ export default function StoreDetailScreen({ route, navigation }) {
   }, [fetchInventory]);
 
   // ── Normalise camel/snake variants from routeStore (L1) vs API detail ─────
-  const coverBg      = storeDetail.cover_bg     ?? storeDetail.coverBg;
-  const iconColor    = storeDetail.icon_color    ?? storeDetail.iconColor;
-  const tagColor     = storeDetail.tag_color     ?? storeDetail.tagColor;
+  // cover_media may be a string or an array — extract the first valid URL.
+  // Real API returns banner_url / image_url (no cover_media or cover_url field).
+  const _rawMedia    = storeDetail.cover_media ?? storeDetail.cover_url
+                    ?? storeDetail.banner_url  ?? storeDetail.image_url;
+  const coverMedia   = !_rawMedia
+    ? null
+    : typeof _rawMedia === 'string'
+      ? (_rawMedia || null)
+      : Array.isArray(_rawMedia)
+        ? (_rawMedia.find(v => typeof v === 'string' && v) ?? null)
+        : null;
+  // Use || (not ??) so empty strings '' fall through to the defaults
+  const coverBg      = storeDetail.cover_bg     || storeDetail.coverBg    || '#F0F1F8';
+  const iconColor    = storeDetail.icon_color   || storeDetail.iconColor   || '#6200EE';
+  const tagColor     = storeDetail.tag_color    || storeDetail.tagColor    || '#6200EE';
   const reviewCount  = storeDetail.review_count  ?? storeDetail.reviewCount  ?? 0;
   const deliveryTime = storeDetail.delivery_time ?? storeDetail.deliveryTime;
+
+  // categories is an array from the API; fall back to the legacy category string
+  const categoryLabel = (() => {
+    const arr = storeDetail.categories;
+    if (Array.isArray(arr) && arr.length > 0) {
+      return arr.map(c => String(c).trim()).filter(Boolean).join(' · ');
+    }
+    return storeDetail.category ?? '';
+  })();
 
   // Cart count for this store (drives bottom padding)
   const { items } = useCart();
@@ -422,20 +459,29 @@ export default function StoreDetailScreen({ route, navigation }) {
             },
           ]}
         >
-          <Ionicons
-            name={storeDetail.icon}
-            size={130}
-            color={`${iconColor}10`}
-            style={styles.heroBgIcon}
-          />
-          <View style={[
-            styles.heroMonogram,
-            { backgroundColor: `${iconColor}18`, borderColor: `${iconColor}35` },
-          ]}>
-            <Text style={[styles.heroMonogramText, { color: iconColor }]}>
-              {storeDetail.name.charAt(0)}
-            </Text>
-          </View>
+          {/* Real cover image — fills the hero when the API provides one */}
+          {coverMedia && (
+            <Image source={{ uri: coverMedia }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+          )}
+          {/* Decorative fallback — hidden when a real cover image is available */}
+          {!coverMedia && (
+            <>
+              <Ionicons
+                name={storeDetail.icon}
+                size={130}
+                color={`${iconColor}10`}
+                style={styles.heroBgIcon}
+              />
+              <View style={[
+                styles.heroMonogram,
+                { backgroundColor: `${iconColor}18`, borderColor: `${iconColor}35` },
+              ]}>
+                <Text style={[styles.heroMonogramText, { color: iconColor }]}>
+                  {storeDetail.name.charAt(0)}
+                </Text>
+              </View>
+            </>
+          )}
           {storeDetail.tag && (
             <View style={[styles.heroTag, { backgroundColor: tagColor }]}>
               <Text style={styles.heroTagText}>{storeDetail.tag}</Text>
@@ -452,8 +498,8 @@ export default function StoreDetailScreen({ route, navigation }) {
           <View style={styles.infoTitleRow}>
             <View style={styles.infoTitleBlock}>
               <Text style={styles.storeName} numberOfLines={1}>{storeDetail.name}</Text>
-              <Text style={styles.storeMeta}>
-                {storeDetail.category} · {reviewCount.toLocaleString()} reviews
+              <Text style={styles.storeMeta} numberOfLines={1} ellipsizeMode="tail">
+                {categoryLabel}{categoryLabel ? ' · ' : ''}{reviewCount.toLocaleString()} reviews
               </Text>
             </View>
             <View style={styles.ratingBadge}>
@@ -929,6 +975,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 14,
     flexShrink: 0,
+    overflow: 'hidden',
+  },
+  swatchImage: {
+    width: 72,
+    height: 72,
   },
   swatchBadge: {
     position: 'absolute',

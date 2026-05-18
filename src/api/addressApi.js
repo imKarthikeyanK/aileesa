@@ -11,50 +11,21 @@
  * assigns a dummy user and merges it into the real account at order placement.
  */
 
-import { getHeaders } from './requestHeaders';
 import { AILEESA_API_URL, BASE_URL } from './env';
+import { httpGet, httpPost, httpPatch } from './httpClient';
 
 // ─── HTTP helpers ─────────────────────────────────────────────────────────────
 
-async function _post(url, body, { accessToken } = {}) {
-  const res = await fetch(url, {
-    method:  'POST',
-    headers: getHeaders({ accessToken }),
-    body:    JSON.stringify(body),
-  });
-  const data = await res.json();
-  if (!res.ok) {
-    const err = new Error(data.message ?? 'Request failed');
-    err.data = data;
-    throw err;
-  }
-  return data;
+function _post(url, body, { accessToken } = {}) {
+  return httpPost(url, body, { accessToken });
 }
 
-async function _get(url, { accessToken } = {}) {
-  const res = await fetch(url, { headers: getHeaders({ accessToken }) });
-  const data = await res.json();
-  if (!res.ok) {
-    const err = new Error(data.message ?? 'Request failed');
-    err.data = data;
-    throw err;
-  }
-  return data;
+function _get(url, { accessToken } = {}) {
+  return httpGet(url, { accessToken });
 }
 
-async function _patch(url, body, { accessToken } = {}) {
-  const res = await fetch(url, {
-    method:  'PATCH',
-    headers: getHeaders({ accessToken }),
-    body:    JSON.stringify(body),
-  });
-  const data = await res.json();
-  if (!res.ok) {
-    const err = new Error(data.message ?? 'Request failed');
-    err.data = data;
-    throw err;
-  }
-  return data;
+function _patch(url, body, { accessToken } = {}) {
+  return httpPatch(url, body, { accessToken });
 }
 
 // ─── API surface ──────────────────────────────────────────────────────────────

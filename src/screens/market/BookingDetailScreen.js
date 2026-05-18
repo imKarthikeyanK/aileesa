@@ -8,7 +8,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, StatusBar, Linking, Share, Platform,
+  ActivityIndicator, StatusBar, Linking, Share, Platform, Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -269,6 +269,9 @@ export default function BookingDetailScreen({ route, navigation }) {
           <Text style={styles.storeName}>{order.store_name}</Text>
           {order.items.map((item, idx) => (
             <View key={idx} style={styles.itemRow}>
+              {item.image_url ? (
+                <Image source={{ uri: item.image_url }} style={styles.itemThumb} resizeMode="cover" />
+              ) : null}
               <Text style={styles.itemQty}>{item.quantity}×</Text>
               <Text style={styles.itemName}>{item.name}</Text>
               <Text style={styles.itemPrice}>₹{item.price * item.quantity}</Text>
@@ -416,6 +419,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
+  itemThumb: { width: 32, height: 32, borderRadius: 8 },
   itemQty:   { fontSize: 13, color: TEXT_MUTED, width: 24 },
   itemName:  { flex: 1, fontSize: 13, color: TEXT_PRI },
   itemPrice: { fontSize: 13, fontWeight: '600', color: NAVY },

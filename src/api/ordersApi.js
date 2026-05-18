@@ -6,26 +6,17 @@
  */
 
 import { getHeaders } from './requestHeaders';
-import { AILEESA_API_URL as BASE_URL } from './env';
+import { AILEESA_API_URL as BASE_URL, USE_MOCK } from './env';
+import { httpGet, httpPost } from './httpClient';
 
 // ─── Real API helpers ─────────────────────────────────────────────────────────
 
-async function _get(path, { accessToken } = {}) {
-  const res = await fetch(`${BASE_URL}${path}`, { headers: getHeaders({ accessToken }) });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message ?? 'Request failed');
-  return data;
+function _get(path, { accessToken } = {}) {
+  return httpGet(`${BASE_URL}${path}`, { accessToken });
 }
 
-async function _post(path, body, { accessToken } = {}) {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    method: 'POST',
-    headers: getHeaders({ accessToken }),
-    body: JSON.stringify(body),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message ?? 'Request failed');
-  return data;
+function _post(path, body, { accessToken } = {}) {
+  return httpPost(`${BASE_URL}${path}`, body, { accessToken });
 }
 
 // ─── Mock in-memory store ──────────────────────────────────────────────────────
@@ -163,20 +154,26 @@ export const OrdersAPI = {
    * Returns the user's full order history, newest first.
    */
   async getOrders() {
-    await new Promise(r => setTimeout(r, MOCK_DELAY));
-    return [..._orders].sort(
-      (a, b) => new Date(b.created_at) - new Date(a.created_at),
-    );
+    if (USE_MOCK) {
+      await new Promise(r => setTimeout(r, MOCK_DELAY));
+      return [..._orders].sort(
+        (a, b) => new Date(b.created_at) - new Date(a.created_at),
+      );
+    }
+    return _get('/orders');
   },
 
   /**
    * GET /orders/:id
    */
   async getOrder(id) {
-    await new Promise(r => setTimeout(r, 500));
-    const order = _orders.find(o => o.id === id);
-    if (!order) throw new Error(`Order ${id} not found`);
-    return { ...order };
+    if (USE_MOCK) {
+      await new Promise(r => setTimeout(r, 500));
+      const order = _orders.find(o => o.id === id);
+      if (!order) throw new Error(`Order ${id} not found`);
+      return { ...order };
+    }
+    return _get(`/orders/${id}`);
   },
 
   /**
@@ -184,31 +181,39 @@ export const OrdersAPI = {
    * Places a new order and returns the created booking.
    */
   async placeOrder({ store_id, store_name, business_id, items, sub_total, tax, delivery_fee, platform_fee, grand_total, payment_method, delivery_info, delivery_time }) {
-    await new Promise(r => setTimeout(r, 1400));
+    if (USE_MOCK) {
+      await new Promise(r => setTimeout(r, 1400));
 
-    const now      = new Date().toISOString();
-    const newOrder = {
-      id:            `BK-${makeid(6)}`,
-      created_at:    now,
-      store_id:      store_id ?? 'unknown',
-      store_name:    store_name ?? 'Store',
-      items,
-      sub_total,
-      tax:           tax ?? 0,
-      delivery_fee,
-      platform_fee,
-      grand_total,
-      status:        'processing',
-      delivered_at:  null,
-      delivery_info,
-      payment_method: payment_method ?? 'COD',
-      payment_status: 'paid',
-      delivery_time,
-      invoice_url:   null,
-      tracking:      buildTracking(now),
-    };
+      const now      = new Date().toISOString();
+      const newOrder = {
+        id:            `BK-${makeid(6)}`,
+        created_at:    now,
+        store_id:      store_id ?? 'unknown',
+        store_name:    store_name ?? 'Store',
+        items,
+        sub_total,
+        tax:           tax ?? 0,
+        delivery_fee,
+        platform_fee,
+        grand_total,
+        status:        'processing',
+        delivered_at:  null,
+        delivery_info,
+        payment_method: payment_method ?? 'COD',
+        payment_status: 'paid',
+        delivery_time,
+        invoice_url:   null,
+        tracking:      buildTracking(now),
+      };
 
-    _orders.push(newOrder);
-    return { ...newOrder };
+      _orders.push(newOrder);
+      return { ...newOrder };
+    }
+
+    return _post('/orders/place-order', {
+      store_id, store_name, business_id, items, sub_total, tax,
+      delivery_fee, platform_fee, grand_total, payment_method,
+      delivery_info, delivery_time,
+    });
   },
 };

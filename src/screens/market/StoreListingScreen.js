@@ -24,6 +24,7 @@ import {
   Animated,
   Dimensions,
   FlatList,
+  Image,
   Platform,
   StatusBar,
   StyleSheet,
@@ -249,13 +250,37 @@ function CategoryChip({ item, selected, onPress }) {
 
 // ─── StoreCard ─────────────────────────────────────────────────────────────────
 
+/**
+ * Safely extracts a URI string from an image field that may be:
+ *   - a plain string   "https://..."
+ *   - an array         ["https://...", ...]
+ *   - null / undefined
+ */
+function _imageUri(val) {
+  if (!val) return null;
+  if (typeof val === 'string') return val || null;
+  if (Array.isArray(val)) {
+    const first = val.find(v => typeof v === 'string' && v);
+    return first ?? null;
+  }
+  return null;
+}
+
 function StoreCard({ store, onPress }) {
   // API returns snake_case; support both for forward-compat
-  const coverBg    = store.cover_bg    ?? store.coverBg;
-  const iconColor  = store.icon_color  ?? store.iconColor;
-  const tagColor   = store.tag_color   ?? store.tagColor;
-  const reviewCount = store.review_count ?? store.reviewCount ?? 0;
+  // banner_url is the real API field; image_url as secondary fallback for thumbnail
+  const bannerImage  = _imageUri(store.banner_url ?? store.banner_image ?? store.image_url);
+  // Use || (not ??) so empty strings '' fall through to the default
+  const coverBg      = store.cover_bg    || store.coverBg    || '#F0F1F8';
+  const iconColor    = store.icon_color  || store.iconColor  || ACCENT;
+  const tagColor     = store.tag_color   || store.tagColor   || ACCENT;
+  const reviewCount  = store.review_count ?? store.reviewCount ?? 0;
   const deliveryTime = store.delivery_time ?? store.deliveryTime;
+  // categories is an array from the API; fall back to legacy category string
+  const _cats = store.categories;
+  const categoryLabel = Array.isArray(_cats) && _cats.length > 0
+    ? _cats.map(c => String(c).trim()).filter(Boolean).join(' · ')
+    : (store.category ?? '');
 
   return (
     <TouchableOpacity
@@ -265,22 +290,29 @@ function StoreCard({ store, onPress }) {
     >
       {/* ── Image area — 12 dp border radius (spec) ─────────── */}
       <View style={[styles.cardImage, { backgroundColor: coverBg }]}>
-        {/* Large background icon — decorative wash */}
-        <Ionicons
-          name={store.icon}
-          size={64}
-          color={`${iconColor}18`}
-          style={styles.cardBgIcon}
-        />
-        {/* Store initial monogram */}
-        <View style={[styles.monogram, {
-          backgroundColor: `${iconColor}1A`,
-          borderColor: `${iconColor}30`,
-        }]}>
-          <Text style={[styles.monogramText, { color: iconColor }]}>
-            {store.name.charAt(0)}
-          </Text>
-        </View>
+        {/* Real banner image — fills card when the API provides one */}
+        {bannerImage && (
+          <Image source={{ uri: bannerImage }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+        )}
+        {/* Decorative fallback — icon wash + monogram (hidden when real banner present) */}
+        {!bannerImage && (
+          <>
+            <Ionicons
+              name={store.icon}
+              size={64}
+              color={`${iconColor}18`}
+              style={styles.cardBgIcon}
+            />
+            <View style={[styles.monogram, {
+              backgroundColor: `${iconColor}1A`,
+              borderColor: `${iconColor}30`,
+            }]}>
+              <Text style={[styles.monogramText, { color: iconColor }]}>
+                {store.name.charAt(0)}
+              </Text>
+            </View>
+          </>
+        )}
 
         {/* Closed overlay */}
         {store.is_open === false && (
@@ -317,7 +349,7 @@ function StoreCard({ store, onPress }) {
         </View>
 
         {/* Category — gray as specified */}
-        <Text style={styles.cardCategory}>{store.category}</Text>
+        <Text style={styles.cardCategory} numberOfLines={1}>{categoryLabel}</Text>
 
         <View style={styles.cardMetaRow}>
           <Ionicons name="time-outline" size={12} color={TEXT_MUTED} />
@@ -405,15 +437,19 @@ export default function StoreListingScreen({ navigation }) {
 
     try {
       const res = await getStores({ page: pageNum, category: categoryRef.current });
+      console.log('[SLP] getStores raw response:', JSON.stringify(res, null, 2));
+
+      const data       = Array.isArray(res.data) ? res.data : [];
+      const pagination = (res.pagination && typeof res.pagination === 'object') ? res.pagination : {};
 
       if (replace) {
-        setStores(res.data);
+        setStores(data);
       } else {
-        setStores(prev => [...prev, ...res.data]);
+        setStores(prev => [...prev, ...data]);
       }
 
-      setTotalCount(res.pagination.total);
-      hasNextRef.current = res.pagination.has_next;
+      setTotalCount(pagination.total ?? 0);
+      hasNextRef.current = pagination.has_next ?? false;
       pageRef.current    = pageNum;
       setError(null);
     } catch (err) {

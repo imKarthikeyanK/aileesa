@@ -21,8 +21,10 @@
  *   Codes: INVALID_OTP | OTP_EXPIRED | TOKEN_EXPIRED | TOKEN_REVOKED | INVALID_TOKEN | NETWORK_ERROR
  */
 
-// ─── Switch this to 'real' when backend is ready ──────────────────────────────
-const ACTIVE_PROVIDER = 'mock'; // 'mock' | 'real'
+import { USE_MOCK } from './env';
+
+// ─── Derived from the global USE_MOCK flag in env.js ─────────────────────────
+const ACTIVE_PROVIDER = USE_MOCK ? 'mock' : 'real';
 
 /**
  * OTP_CHANNEL — controls the verification channel for authentication.
@@ -242,56 +244,33 @@ const MockProvider = {
 // ─── Real Provider (production) ───────────────────────────────────────────────
 import { getHeaders } from './requestHeaders';
 import { AUTH_API_URL } from './env';
+import { httpGet, httpPost, httpPatch, httpPut } from './httpClient';
+
+function _authErrorFactory(data) {
+  return authError(data.error_code ?? data.code ?? 'NETWORK_ERROR', data.message ?? 'An error occurred.');
+}
 
 const RealProvider = {
   BASE_URL: AUTH_API_URL,
 
   /** POST helper — injects all x-oz-* headers plus optional Bearer token. */
   async _post(path, body, { accessToken } = {}) {
-    const res = await fetch(`${this.BASE_URL}${path}`, {
-      method:  'POST',
-      headers: getHeaders({ accessToken }),
-      body:    JSON.stringify(body),
-    });
-    const data = await res.json();
-    // Real API returns { error_code, message } on failure
-    if (!res.ok) throw authError(data.error_code ?? data.code ?? 'NETWORK_ERROR', data.message ?? 'An error occurred.');
-    return data;
+    return httpPost(`${this.BASE_URL}${path}`, body, { accessToken, errorFactory: _authErrorFactory });
   },
 
   /** PATCH helper — for profile / settings endpoints. */
   async _patch(path, body, { accessToken } = {}) {
-    const res = await fetch(`${this.BASE_URL}${path}`, {
-      method:  'PATCH',
-      headers: getHeaders({ accessToken }),
-      body:    JSON.stringify(body),
-    });
-    const data = await res.json();
-    if (!res.ok) throw authError(data.error_code ?? data.code ?? 'NETWORK_ERROR', data.message ?? 'An error occurred.');
-    return data;
+    return httpPatch(`${this.BASE_URL}${path}`, body, { accessToken, errorFactory: _authErrorFactory });
   },
 
   /** GET helper — for read-only authenticated endpoints. */
   async _get(path, { accessToken } = {}) {
-    const res = await fetch(`${this.BASE_URL}${path}`, {
-      method:  'GET',
-      headers: getHeaders({ accessToken }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw authError(data.error_code ?? data.code ?? 'NETWORK_ERROR', data.message ?? 'An error occurred.');
-    return data;
+    return httpGet(`${this.BASE_URL}${path}`, { accessToken, errorFactory: _authErrorFactory });
   },
 
   /** PUT helper — for full-resource update endpoints. */
   async _put(path, body, { accessToken } = {}) {
-    const res = await fetch(`${this.BASE_URL}${path}`, {
-      method:  'PUT',
-      headers: getHeaders({ accessToken }),
-      body:    JSON.stringify(body),
-    });
-    const data = await res.json();
-    if (!res.ok) throw authError(data.error_code ?? data.code ?? 'NETWORK_ERROR', data.message ?? 'An error occurred.');
-    return data;
+    return httpPut(`${this.BASE_URL}${path}`, body, { accessToken, errorFactory: _authErrorFactory });
   },
 
   /**
@@ -344,11 +323,8 @@ const RealProvider = {
    */
   async revokeSession(_refreshToken, { accessToken } = {}) {
     if (!accessToken) return; // nothing to revoke without a valid access token
-    await fetch(`${this.BASE_URL}/token/revoke`, {
-      method:  'POST',
-      headers: getHeaders({ accessToken }),
-    });
     // Fire-and-forget — AuthContext clears the local session regardless.
+    httpPost(`${this.BASE_URL}/token/revoke`, undefined, { accessToken }).catch(() => {});
   },
 
   /** GET /me — fetch the authenticated user's full profile. */

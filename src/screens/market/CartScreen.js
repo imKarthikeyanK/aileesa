@@ -16,6 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import {
   ActivityIndicator,
   Animated,
+  Image,
   Modal,
   Pressable,
   ScrollView,
@@ -141,6 +142,14 @@ const addrStyles = StyleSheet.create({
 
 // ─── CartItemRow ───────────────────────────────────────────────────────────────
 
+/** Safely coerce an image field that may be a string, array, or null to a URI string. */
+function _imageUri(val) {
+  if (!val) return null;
+  if (typeof val === 'string') return val || null;
+  if (Array.isArray(val)) return val.find(v => typeof v === 'string' && v) ?? null;
+  return null;
+}
+
 function CartItemRow({ item, onAdd, onRemove }) {
   const discount =
     item.base_price && item.base_price > item.price
@@ -152,11 +161,14 @@ function CartItemRow({ item, onAdd, onRemove }) {
     <View style={styles.itemRow}>
       {/* Icon swatch */}
       <View style={[styles.itemSwatch, { backgroundColor: item.icon_bg ?? '#F0F1F8' }]}>
-        <Ionicons
-          name={item.icon ?? 'cube-outline'}
-          size={22}
-          color={item.icon_color ?? ACCENT}
-        />
+        {item.image_url
+          ? <Image source={{ uri: _imageUri(item.image_url) }} style={styles.swatchImage} resizeMode="cover" />
+          : <Ionicons
+              name={item.icon ?? 'cube-outline'}
+              size={22}
+              color={item.icon_color ?? ACCENT}
+            />
+        }
       </View>
 
       {/* Info */}
@@ -750,6 +762,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    overflow: 'hidden',
+  },
+  swatchImage: {
+    width: 48,
+    height: 48,
   },
   itemInfo: {
     flex: 1,
