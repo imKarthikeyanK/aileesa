@@ -410,6 +410,10 @@ export default function AuthSheet({ visible, onClose }) {
   // ── Sheet slide-in / slide-out ─────────────────────────────────────────────
   useEffect(() => {
     if (visible) {
+      // Reset to off-screen before animating in. If a previous close animation
+      // was interrupted the value may be at a stale intermediate position,
+      // which causes the sheet to "stick" instead of sliding up from the bottom.
+      slideY.setValue(700);
       Animated.parallel([
         Animated.spring(slideY, {
           toValue: 0, useNativeDriver: true,
@@ -543,7 +547,9 @@ const styles = StyleSheet.create({
     backgroundColor: BG, borderRadius: 12,
     borderWidth: 1, borderColor: BORDER,
     paddingHorizontal: 14, paddingVertical: 13,
-    fontSize: 15, color: NAVY, fontWeight: '500',
+    // fontSize must be ≥ 16 to prevent iOS Safari from auto-zooming the
+    // viewport when the field is focused.
+    fontSize: 16, color: NAVY, fontWeight: '500',
   },
   phoneRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
   dialCode: {
@@ -575,10 +581,12 @@ const styles = StyleSheet.create({
   otpBoxFilled: { borderColor: NAVY, backgroundColor: WHITE },
   otpBoxCaret:  { borderColor: ACCENT },
   otpBoxError:  { borderColor: ACCENT, backgroundColor: '#FFF5F5' },
-  // Hidden input sits off-screen; we just need it focusable
+  // Hidden input sits off-screen; we just need it focusable.
+  // fontSize: 16 prevents iOS Safari from auto-zooming when it gains focus.
   hiddenInput: {
     position: 'absolute', top: -9999, left: -9999,
     width: 1, height: 1, opacity: 0,
+    fontSize: 16,
   },
 
   // ── Buttons ──────────────────────────────────────────────────────────────────

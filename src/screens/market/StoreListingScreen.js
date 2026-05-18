@@ -634,7 +634,22 @@ export default function StoreListingScreen({ navigation }) {
             // useNativeDriver for scroll-driven Animated.event is not supported on web;
             // react-native-web silently ignores it and the animation breaks.
             useNativeDriver: Platform.OS !== 'web',
-            listener: (e) => handleScrollDirection(e.nativeEvent.contentOffset.y),
+            listener: (e) => {
+              const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+              handleScrollDirection(contentOffset.y);
+              // On web, Animated.FlatList's onEndReached may not fire reliably.
+              // We replicate the threshold check inside the scroll listener so
+              // users get seamless auto-pagination without clicking "Load more".
+              if (
+                Platform.OS === 'web' &&
+                contentSize?.height > 0 &&
+                layoutMeasurement?.height > 0
+              ) {
+                const distanceFromEnd =
+                  contentSize.height - (contentOffset.y + layoutMeasurement.height);
+                if (distanceFromEnd < 400) handleEndReached();
+              }
+            },
           },
         )}
         scrollEventThrottle={16}

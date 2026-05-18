@@ -18,14 +18,41 @@ import React, {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useReducer,
 } from 'react';
+import { Platform } from 'react-native';
+
+const STORAGE_KEY = 'aileesa_cart';
+
+// ─── localStorage helpers (web only) ─────────────────────────────────────────
+function loadFromStorage() {
+  if (Platform.OS !== 'web') return null;
+  try {
+    const raw = typeof localStorage !== 'undefined' && localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return null;
+}
+
+function saveToStorage(items) {
+  if (Platform.OS !== 'web') return;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+  } catch {}
+}
 
 const CartContext = createContext(null);
 
 // pendingAdd: { item } | null  — set when a cross-store add is attempted
 const initialState = { items: [], pendingAdd: null };
+
+function getInitialState() {
+  const saved = loadFromStorage();
+  if (saved && Array.isArray(saved)) return { items: saved, pendingAdd: null };
+  return initialState;
+}
 
 function cartReducer(state, action) {
   switch (action.type) {
@@ -104,7 +131,12 @@ function cartReducer(state, action) {
 }
 
 export function CartProvider({ children }) {
-  const [state, dispatch] = useReducer(cartReducer, initialState);
+  const [state, dispatch] = useReducer(cartReducer, undefined, getInitialState);
+
+  // Persist items to localStorage on web whenever they change
+  useEffect(() => {
+    saveToStorage(state.items);
+  }, [state.items]);
 
   const addItem = useCallback(item => {
     dispatch({ type: 'ADD_ITEM', item });

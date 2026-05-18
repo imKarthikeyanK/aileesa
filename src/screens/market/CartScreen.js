@@ -305,6 +305,15 @@ export default function CartScreen({ navigation }) {
     return () => showTabBar();
   }, [hideTabBar, showTabBar]));
 
+  // Re-hide the tab bar whenever the auth sheet is dismissed.
+  // On web, showing a Modal can trigger a navigation blur/focus cycle which
+  // calls the useFocusEffect cleanup (showTabBar) and then re-hides. The
+  // brief window between those two calls makes the tab bar flash into view.
+  // Explicitly re-hiding after the sheet closes eliminates that flash.
+  useEffect(() => {
+    if (!authSheet) hideTabBar();
+  }, [authSheet, hideTabBar]);
+
   // ── Pulse animation for Place Order CTA ───────────────────────────────────
   const ctaPulse = useRef(new Animated.Value(1)).current;
   useEffect(() => {

@@ -45,8 +45,11 @@ export function TabBarProvider({ children }) {
   }, [tabBarY]);
 
   const hideTabBar = useCallback(() => {
+    // On web we overshoot by 200 dp so Safari's dynamic address bar can't
+    // reveal the edge of the tab bar, no matter how the viewport shifts.
+    const toValue = Platform.OS === 'web' ? TAB_BAR_H + 200 : TAB_BAR_H;
     Animated.timing(tabBarY, {
-      toValue:         TAB_BAR_H,
+      toValue,
       duration:        220,
       useNativeDriver: true,
     }).start();
