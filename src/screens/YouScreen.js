@@ -238,7 +238,7 @@ export default function YouScreen({ navigation }) {
             iconColor={ACCENT}
             label="Past Orders"
             sublabel={isAuthenticated ? 'View your order history' : 'Login to view your orders'}
-            onPress={() => requireLogin(() => navigation.navigate('Market', { screen: 'OrderHistory' }))}
+            onPress={() => requireLogin(() => navigation.navigate('OrderHistory'))}
             last
           />
         </Section>

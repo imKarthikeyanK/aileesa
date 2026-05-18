@@ -1,25 +1,27 @@
 /**
- * AuthSheet.js — WhatsApp OTP authentication bottom sheet
+ * AuthSheet.js — OTP authentication bottom sheet
  *
- * REPLACEABLE COMPONENT
- * ─────────────────────
- * This component owns the entire auth UI flow. The interface is:
- *   <AuthSheet visible={bool} onClose={fn} />
+ * CHANNEL CONTROL
+ * ───────────────
+ * Set OTP_CHANNEL in src/api/authApi.js:
+ *   'SMS' — 4-digit numeric OTP, number-only keypad, SMS-branded UI
+ *   'WA'  — 6-char alphanumeric OTP, WhatsApp-branded UI (legacy)
  *
- * To add a new login method (Google, Apple, email, etc.):
- *   1. Create a parallel component with the same { visible, onClose } props
- *   2. It should call useAuth().verifyOtp() or a new context method on success
- *   3. Swap or compose it with AuthSheet in YouScreen (or wherever it's rendered)
+ * KEYBOARD FIX
+ * ────────────
+ * OTP input uses a single hidden TextInput (off-screen) shared by all boxes.
+ * The styled boxes are decorative views driven by the value string.
+ * Because focus never hops between inputs, the keyboard type never resets.
  *
  * STEPS
  * ─────
- *   PHONE → user enters name + WhatsApp number → sendOtp() called
- *   OTP   → user enters 6-char alphanumeric code → verifyOtp() called → onClose()
+ *   PHONE → user enters WhatsApp/mobile number → sendOtp() called
+ *   OTP   → user enters OTP code → verifyOtp() called → onClose()
  *
  * DEV MODE
  * ────────
  * When IS_MOCK is true, a yellow banner in the OTP step displays the generated
- * OTP so testers can enter it without a real WhatsApp message.
+ * OTP so testers can enter it without a real message.
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
@@ -30,7 +32,10 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
-import { IS_MOCK } from '../../api/authApi';
+import { IS_MOCK, OTP_CHANNEL, OTP_LENGTH } from '../../api/authApi';
+
+// ─── Channel flag ─────────────────────────────────────────────────────────────────────
+const IS_SMS = OTP_CHANNEL === 'SMS';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const NAVY      = '#16172B';
@@ -42,7 +47,6 @@ const BG        = '#F5F6FA';
 const BORDER    = '#E4E8F4';
 const WHITE     = '#FFFFFF';
 
-const OTP_LENGTH      = 6;
 const RESEND_COOLDOWN = 30; // seconds
 
 // ─── Step 1: Phone entry ────────────────────────────────────────────────────────
@@ -72,20 +76,27 @@ function PhoneStep({ onOtpSent, onClose }) {
     }
   };
 
+  // ─ Channel-specific UI config ────────────────────────────────────────────────
+  const channelIcon  = IS_SMS ? 'chatbox-outline'   : 'logo-whatsapp';
+  const channelColor = IS_SMS ? '#6200EE'            : '#25D366';
+  const channelTitle = IS_SMS ? 'Login with OTP'     : 'Login with WhatsApp';
+  const channelSub   = IS_SMS
+    ? 'We’ll send a one-time code to your\nmobile number via SMS'
+    : 'We’ll send a one-time code to your\nWhatsApp number';
+  const fieldLabel   = IS_SMS ? 'Mobile number'      : 'WhatsApp number';
+
   return (
     <View style={styles.step}>
       <View style={styles.iconCircle}>
-        <Ionicons name="logo-whatsapp" size={30} color="#25D366" />
+        <Ionicons name={channelIcon} size={30} color={channelColor} />
       </View>
 
-      <Text style={styles.stepTitle}>Login with WhatsApp</Text>
-      <Text style={styles.stepSub}>
-        We'll send a one-time code to your{'\n'}WhatsApp number
-      </Text>
+      <Text style={styles.stepTitle}>{channelTitle}</Text>
+      <Text style={styles.stepSub}>{channelSub}</Text>
 
       {/* Phone */}
       <View style={styles.fieldGroup}>
-        <Text style={styles.fieldLabel}>WhatsApp number</Text>
+        <Text style={styles.fieldLabel}>{fieldLabel}</Text>
         <View style={styles.phoneRow}>
           <View style={styles.dialCode}>
             <Text style={styles.dialCodeText}>🇮🇳  +91</Text>
@@ -139,89 +150,82 @@ function PhoneStep({ onOtpSent, onClose }) {
 }
 
 // ─── Step 2: OTP verification ─────────────────────────────────────────────────
-function OtpStep({ requestId, phone, name, devOtp, onSuccess, onBack }) {
+//
+// KEYBOARD FIX: A single hidden TextInput captures all keystrokes.
+// The visible boxes are decorative Views built from the value string.
+// Focus never hops between inputs → keyboard type never auto-resets.
+//
+function OtpStep({ requestId, phone, devOtp, onSuccess, onBack }) {
   const { sendOtp, verifyOtp } = useAuth();
 
-  const [otp, setOtp]                         = useState(Array(OTP_LENGTH).fill(''));
-  const [loading, setLoading]                 = useState(false);
-  const [error, setError]                     = useState('');
-  const [countdown, setCountdown]             = useState(RESEND_COOLDOWN);
-  const [resending, setResending]             = useState(false);
+  const [value,            setValue]            = useState('');
+  const [loading,          setLoading]          = useState(false);
+  const [error,            setError]            = useState('');
+  const [countdown,        setCountdown]        = useState(RESEND_COOLDOWN);
+  const [resending,        setResending]        = useState(false);
   const [currentRequestId, setCurrentRequestId] = useState(requestId);
-  const [currentDevOtp, setCurrentDevOtp]     = useState(devOtp);
+  const [currentDevOtp,    setCurrentDevOtp]    = useState(devOtp);
 
-  const inputRefs = useRef([]);
+  const hiddenRef = useRef(null);
   const timerRef  = useRef(null);
 
-  // Resend countdown
-  useEffect(() => {
+  // ─ Channel UI config ──────────────────────────────────────────────────────────
+  const channelSub       = IS_SMS
+    ? `Sent to +91 ${phone} via SMS`
+    : `Sent to +91 ${phone} via WhatsApp`;
+  const channelIcon      = IS_SMS ? 'chatbox-outline' : 'chatbubble-ellipses-outline';
+  const channelIconColor = IS_SMS ? '#6200EE'         : '#25D366';
+
+  // Keyboard and filter settings per channel
+  const kbType   = IS_SMS ? 'number-pad' : 'default';
+  const kbCaps   = IS_SMS ? 'none'       : 'characters';
+  const sanitise = (t) => IS_SMS
+    ? t.replace(/[^0-9]/g, '').slice(0, OTP_LENGTH)
+    : t.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, OTP_LENGTH);
+
+  // ─ Countdown ──────────────────────────────────────────────────────────────────
+  const startTimer = () => {
+    clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
       setCountdown((c) => {
         if (c <= 1) { clearInterval(timerRef.current); return 0; }
         return c - 1;
       });
     }, 1000);
-    // Auto-focus first box
-    setTimeout(() => inputRefs.current[0]?.focus(), 300);
+  };
+
+  useEffect(() => {
+    startTimer();
+    setTimeout(() => hiddenRef.current?.focus(), 300);
     return () => clearInterval(timerRef.current);
   }, []);
 
-  const otpString = otp.join('');
-  const canVerify = otpString.length === OTP_LENGTH && !loading;
+  const canVerify = value.length === OTP_LENGTH && !loading;
 
-  const handleChange = (text, index) => {
-    // Accept only alphanumeric, uppercase
-    const char = text.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(-1);
-    const next  = [...otp];
-    next[index] = char;
-    setOtp(next);
+  // ─ Input ──────────────────────────────────────────────────────────────────────
+  const handleChange = (text) => {
+    setValue(sanitise(text));
     setError('');
-    if (char && index < OTP_LENGTH - 1) {
-      inputRefs.current[index + 1]?.focus();
-    }
   };
 
-  const handleKeyPress = (e, index) => {
-    if (e.nativeEvent.key === 'Backspace' && !otp[index] && index > 0) {
-      const next = [...otp];
-      next[index - 1] = '';
-      setOtp(next);
-      inputRefs.current[index - 1]?.focus();
-    }
-  };
-
-  // Handle paste — fills all boxes at once
-  const handleChange_withPaste = (text, index) => {
-    const cleaned = text.toUpperCase().replace(/[^A-Z0-9]/g, '');
-    if (cleaned.length > 1) {
-      // Multi-char paste
-      const next = Array(OTP_LENGTH).fill('');
-      [...cleaned].forEach((c, i) => { if (i < OTP_LENGTH) next[i] = c; });
-      setOtp(next);
-      const focusAt = Math.min(cleaned.length, OTP_LENGTH - 1);
-      inputRefs.current[focusAt]?.focus();
-      setError('');
-    } else {
-      handleChange(text, index);
-    }
-  };
-
+  // ─ Verify ─────────────────────────────────────────────────────────────────────
   const handleVerify = async () => {
     if (!canVerify) return;
     setError('');
     setLoading(true);
     try {
-      await verifyOtp(currentRequestId, otpString, name);
+      await verifyOtp(currentRequestId, value);
       onSuccess();
     } catch (e) {
       setError(e.message || 'Verification failed. Please try again.');
-      setOtp(Array(OTP_LENGTH).fill(''));
-      setTimeout(() => inputRefs.current[0]?.focus(), 100);
+      setValue('');
+      setTimeout(() => hiddenRef.current?.focus(), 100);
     } finally {
       setLoading(false);
     }
   };
 
+  // ─ Resend ─────────────────────────────────────────────────────────────────────
   const handleResend = async () => {
     if (countdown > 0 || resending) return;
     setResending(true);
@@ -230,17 +234,10 @@ function OtpStep({ requestId, phone, name, devOtp, onSuccess, onBack }) {
       const result = await sendOtp(phone);
       setCurrentRequestId(result.requestId);
       setCurrentDevOtp(result._devOtp);
-      setOtp(Array(OTP_LENGTH).fill(''));
-      // Reset countdown
+      setValue('');
       setCountdown(RESEND_COOLDOWN);
-      clearInterval(timerRef.current);
-      timerRef.current = setInterval(() => {
-        setCountdown((c) => {
-          if (c <= 1) { clearInterval(timerRef.current); return 0; }
-          return c - 1;
-        });
-      }, 1000);
-      setTimeout(() => inputRefs.current[0]?.focus(), 100);
+      startTimer();
+      setTimeout(() => hiddenRef.current?.focus(), 100);
     } catch (e) {
       setError(e.message || 'Failed to resend. Please try again.');
     } finally {
@@ -271,40 +268,57 @@ function OtpStep({ requestId, phone, name, devOtp, onSuccess, onBack }) {
       </TouchableOpacity>
 
       <View style={styles.iconCircle}>
-        <Ionicons name="chatbubble-ellipses-outline" size={28} color="#25D366" />
+        <Ionicons name={channelIcon} size={28} color={channelIconColor} />
       </View>
 
       <Text style={styles.stepTitle}>Enter OTP</Text>
-      <Text style={styles.stepSub}>
-        Sent to{' '}
-        <Text style={{ fontWeight: '700', color: NAVY }}>+91 {phone}</Text>
-        {'\n'}via WhatsApp
-      </Text>
+      <Text style={styles.stepSub}>{channelSub}</Text>
 
-      {/* 6-box OTP input */}
-      <View style={styles.otpRow}>
-        {otp.map((char, i) => (
-          <TextInput
-            key={i}
-            ref={(r) => { inputRefs.current[i] = r; }}
-            style={[
-              styles.otpBox,
-              char     && styles.otpBoxFilled,
-              !!error  && styles.otpBoxError,
-            ]}
-            value={char}
-            onChangeText={(t) => handleChange_withPaste(t, i)}
-            onKeyPress={(e) => handleKeyPress(e, i)}
-            maxLength={OTP_LENGTH} // allow full paste length
-            keyboardType="default"
-            autoCapitalize="characters"
-            autoCorrect={false}
-            selectTextOnFocus
-            textAlign="center"
-            editable={!loading}
-          />
-        ))}
-      </View>
+      {/*
+        Hidden TextInput — the real input target.
+        keyboardType is fixed for the lifetime of OtpStep; the OS keyboard
+        never reassesses the type because focus never moves to another input.
+        Tapping the decorative box row (below) re-focuses this input.
+      */}
+      <TextInput
+        ref={hiddenRef}
+        value={value}
+        onChangeText={handleChange}
+        onSubmitEditing={handleVerify}
+        keyboardType={kbType}
+        autoCapitalize={kbCaps}
+        autoCorrect={false}
+        maxLength={OTP_LENGTH}
+        editable={!loading}
+        style={styles.hiddenInput}
+        accessible={false}
+        importantForAccessibility="no"
+      />
+
+      {/* Decorative OTP boxes — tap anywhere to re-focus hidden input */}
+      <TouchableOpacity
+        activeOpacity={1}
+        onPress={() => hiddenRef.current?.focus()}
+        style={styles.otpRow}
+      >
+        {Array.from({ length: OTP_LENGTH }, (_, i) => {
+          const char    = value[i] ?? '';
+          const isCaret = !loading && i === Math.min(value.length, OTP_LENGTH - 1);
+          return (
+            <View
+              key={i}
+              style={[
+                styles.otpBox,
+                char    && styles.otpBoxFilled,
+                isCaret && styles.otpBoxCaret,
+                !!error && styles.otpBoxError,
+              ]}
+            >
+              <Text style={styles.otpBoxText}>{char}</Text>
+            </View>
+          );
+        })}
+      </TouchableOpacity>
 
       {!!error && (
         <View style={styles.errorRow}>
@@ -553,11 +567,19 @@ const styles = StyleSheet.create({
       : { flex: 1, aspectRatio: 0.82 }),
     backgroundColor: BG, borderRadius: 12,
     borderWidth: 2, borderColor: BORDER,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  otpBoxText: {
     fontSize: 22, fontWeight: '800', color: NAVY,
-    textAlign: 'center',
   },
   otpBoxFilled: { borderColor: NAVY, backgroundColor: WHITE },
+  otpBoxCaret:  { borderColor: ACCENT },
   otpBoxError:  { borderColor: ACCENT, backgroundColor: '#FFF5F5' },
+  // Hidden input sits off-screen; we just need it focusable
+  hiddenInput: {
+    position: 'absolute', top: -9999, left: -9999,
+    width: 1, height: 1, opacity: 0,
+  },
 
   // ── Buttons ──────────────────────────────────────────────────────────────────
   primaryBtn: {

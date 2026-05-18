@@ -14,7 +14,7 @@
  *   getProfile({ accessToken })                 → { id, name, phone, email?, role?, business_id? }
  *   updateProfile(fields, { accessToken })      → { id, name, phone, email? }
  *
- * OTP FORMAT: 6-char alphanumeric — 1 letter + 4 digits + 1 letter (e.g. "A3456B")
+ * OTP_CHANNEL controls the verification channel (see below).
  * TOKENS:     Signed by backend in production; mock uses a simple encoded payload.
  *
  * Errors: all methods throw { code, message } on failure.
@@ -23,6 +23,21 @@
 
 // ─── Switch this to 'real' when backend is ready ──────────────────────────────
 const ACTIVE_PROVIDER = 'mock'; // 'mock' | 'real'
+
+/**
+ * OTP_CHANNEL — controls the verification channel for authentication.
+ *
+ *   'SMS' — 4-digit numeric OTP sent via SMS.  The OTP input uses a
+ *           number-only keypad and no alphanumeric handling.
+ *   'WA'  — 6-char alphanumeric OTP sent via WhatsApp (legacy / fallback).
+ *           The existing alphanumeric flow and WhatsApp-branded UI are used.
+ *
+ * Change this single constant to toggle between the two flows everywhere.
+ */
+export const OTP_CHANNEL = 'SMS'; // 'SMS' | 'WA'
+
+/** Length of the OTP code — 4 for SMS, 6 for WhatsApp. */
+export const OTP_LENGTH = OTP_CHANNEL === 'SMS' ? 4 : 6;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -37,9 +52,17 @@ function generateId() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
-/** Generates a 6-char alphanumeric OTP: 1 letter + 4 digits + 1 letter */
+/**
+ * Generates an OTP appropriate for the active channel.
+ *   SMS — 4-digit numeric string (e.g. "8423")
+ *   WA  — 6-char alphanumeric: 1 letter + 4 digits + 1 letter (e.g. "A3456B")
+ */
 function generateOtp() {
-  // Exclude ambiguous chars: I O 0 1
+  if (OTP_CHANNEL === 'SMS') {
+    // Numeric 4-digit, never starts with 0
+    return String(Math.floor(1000 + Math.random() * 9000));
+  }
+  // WhatsApp: alphanumeric — exclude ambiguous chars I O 0 1
   const L = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
   const D = '23456789';
   const pick = (set) => set[Math.floor(Math.random() * set.length)];
@@ -126,7 +149,9 @@ const MockProvider = {
       _otpStore.delete(requestId);
       throw authError('OTP_EXPIRED', 'OTP has expired. Please request a new one.');
     }
-    if (record.otp !== otp.toUpperCase()) {
+    // SMS OTPs are numeric; WA OTPs are alphanumeric (compared case-insensitively)
+    const normalise = (s) => OTP_CHANNEL === 'SMS' ? s : s.toUpperCase();
+    if (record.otp !== normalise(otp)) {
       throw authError('INVALID_OTP', 'The OTP you entered is incorrect. Please try again.');
     }
 
@@ -347,3 +372,4 @@ export const AuthAPI = providers[ACTIVE_PROVIDER];
 
 /** True when running in mock mode — used to show dev UI (e.g. OTP banner) */
 export const IS_MOCK = ACTIVE_PROVIDER === 'mock';
+// OTP_CHANNEL and OTP_LENGTH are also exported above (after ACTIVE_PROVIDER declaration).

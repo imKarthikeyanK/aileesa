@@ -18,8 +18,9 @@ import BookingDetailScreen from '../screens/market/BookingDetailScreen';
 
 // ─── Navigators ────────────────────────────────────────────────────────────────
 
-const Tab = createBottomTabNavigator();
+const Tab        = createBottomTabNavigator();
 const MarketStack = createNativeStackNavigator();
+const YouStack    = createNativeStackNavigator();
 
 // ─── Market Stack (L1 → L2) ────────────────────────────────────────────────────
 
@@ -60,16 +61,31 @@ function MarketNavigator() {
         options={{ headerShown: false, animation: slideRight }}
       />
       <MarketStack.Screen
-        name="OrderHistory"
-        component={OrderHistoryScreen}
-        options={{ headerShown: false, animation: slideRight }}
-      />
-      <MarketStack.Screen
         name="LocationPicker"
         component={LocationPickerScreen}
         options={{ headerShown: false, animation: slideBottom }}
       />
     </MarketStack.Navigator>
+  );
+}
+
+// ─── You Stack (You → OrderHistory → BookingDetail) ─────────────────────────────
+
+function YouNavigator() {
+  const slideRight = Platform.OS !== 'web' ? 'slide_from_right' : 'none';
+
+  return (
+    <YouStack.Navigator
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: theme.colors.background },
+        animation: slideRight,
+      }}
+    >
+      <YouStack.Screen name="YouHome"      component={YouScreen} />
+      <YouStack.Screen name="OrderHistory" component={OrderHistoryScreen} options={{ animation: slideRight }} />
+      <YouStack.Screen name="BookingDetail" component={BookingDetailScreen} options={{ animation: slideRight }} />
+    </YouStack.Navigator>
   );
 }
 
@@ -150,7 +166,7 @@ function TabNavigator() {
     >
       <Tab.Screen name="Market"   component={MarketNavigator} />
       <Tab.Screen name="Explore"  component={ExploreScreen} />
-      <Tab.Screen name="You"      component={YouScreen} />
+      <Tab.Screen name="You"      component={YouNavigator} />
     </Tab.Navigator>
   );
 }
