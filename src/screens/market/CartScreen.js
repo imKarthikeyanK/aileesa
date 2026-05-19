@@ -32,6 +32,7 @@ import { useCart } from '../../context/CartContext';
 import { useTabBar } from '../../context/TabBarContext';
 import { useAuth } from '../../context/AuthContext';
 import { useAddress } from '../../context/AddressContext';
+import { useLocation } from '../../context/LocationContext';
 import AuthSheet from '../../components/auth/AuthSheet';
 import { OrdersAPI } from '../../api/ordersApi';
 
@@ -57,9 +58,16 @@ const GST_RATE             = 0.05;
 
 // ─── AddressPicker sheet ───────────────────────────────────────────────────────
 
-function AddressPickerSheet({ visible, onClose, onNavigateToAdd }) {
+function AddressPickerSheet({ visible, onClose, onNavigateToAdd, coords, autoSelectClosest }) {
   const { addresses, selectedAddress, selectAddress, isLoading } = useAddress();
   const insets = useSafeAreaInsets();
+
+  // Auto-select closest address when the sheet opens with no current selection
+  useEffect(() => {
+    if (visible && !selectedAddress && addresses.length > 0 && coords) {
+      autoSelectClosest(coords, addresses);
+    }
+  }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <Modal
@@ -76,7 +84,19 @@ function AddressPickerSheet({ visible, onClose, onNavigateToAdd }) {
         {isLoading ? (
           <ActivityIndicator color={ACCENT} style={{ marginVertical: 24 }} />
         ) : addresses.length === 0 ? (
-          <Text style={addrStyles.empty}>No saved addresses.</Text>
+          <View style={addrStyles.emptyWrap}>
+            <Ionicons name="location-outline" size={36} color={BORDER} />
+            <Text style={addrStyles.emptyTitle}>No saved addresses</Text>
+            <Text style={addrStyles.emptySub}>Add a delivery address to place your order</Text>
+            <TouchableOpacity
+              style={addrStyles.emptyAddBtn}
+              onPress={() => { onClose(); onNavigateToAdd(); }}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="add" size={16} color={WHITE} />
+              <Text style={addrStyles.emptyAddBtnText}>Add Address</Text>
+            </TouchableOpacity>
+          </View>
         ) : (
           addresses.map(addr => {
             const isSel = selectedAddress?.id === addr.id;
@@ -110,34 +130,40 @@ function AddressPickerSheet({ visible, onClose, onNavigateToAdd }) {
           })
         )}
 
-        <TouchableOpacity
-          style={addrStyles.addBtn}
-          onPress={() => { onClose(); onNavigateToAdd(); }}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="add-circle-outline" size={18} color={ACCENT} />
-          <Text style={addrStyles.addBtnText}>Add new address</Text>
-        </TouchableOpacity>
+        {addresses.length > 0 && (
+          <TouchableOpacity
+            style={addrStyles.addBtn}
+            onPress={() => { onClose(); onNavigateToAdd(); }}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="add-circle-outline" size={18} color={ACCENT} />
+            <Text style={addrStyles.addBtnText}>Add new address</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </Modal>
   );
 }
 
 const addrStyles = StyleSheet.create({
-  overlay:     { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.35)' },
-  sheet:       { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: WHITE, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 16, paddingTop: 12 },
-  handle:      { width: 36, height: 4, borderRadius: 2, backgroundColor: BORDER, alignSelf: 'center', marginBottom: 16 },
-  sheetTitle:  { fontSize: 16, fontWeight: '700', color: TEXT_PRI, marginBottom: 12 },
-  empty:       { fontSize: 14, color: TEXT_MUTED, textAlign: 'center', marginVertical: 20 },
-  addrRow:     { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 12, borderRadius: 12, marginBottom: 8, backgroundColor: BG, gap: 12 },
-  addrRowSel:  { backgroundColor: '#EDE7F6', borderWidth: 1, borderColor: ACCENT },
-  addrIconWrap:{ width: 36, height: 36, borderRadius: 18, backgroundColor: WHITE, alignItems: 'center', justifyContent: 'center' },
-  addrTextWrap:{ flex: 1 },
-  addrLabel:   { fontSize: 14, fontWeight: '600', color: TEXT_PRI },
-  addrLabelSel:{ color: ACCENT },
-  addrLine:    { fontSize: 12, color: TEXT_SEC, marginTop: 2 },
-  addBtn:      { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 14, justifyContent: 'center' },
-  addBtnText:  { fontSize: 14, fontWeight: '600', color: ACCENT },
+  overlay:        { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.35)' },
+  sheet:          { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: WHITE, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 16, paddingTop: 12 },
+  handle:         { width: 36, height: 4, borderRadius: 2, backgroundColor: BORDER, alignSelf: 'center', marginBottom: 16 },
+  sheetTitle:     { fontSize: 16, fontWeight: '700', color: TEXT_PRI, marginBottom: 12 },
+  emptyWrap:      { alignItems: 'center', paddingVertical: 28, gap: 6 },
+  emptyTitle:     { fontSize: 15, fontWeight: '700', color: TEXT_PRI, marginTop: 8 },
+  emptySub:       { fontSize: 13, color: TEXT_SEC, textAlign: 'center', lineHeight: 18 },
+  emptyAddBtn:    { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: ACCENT, borderRadius: 12, paddingHorizontal: 20, paddingVertical: 11, marginTop: 12 },
+  emptyAddBtnText:{ fontSize: 14, fontWeight: '700', color: WHITE },
+  addrRow:        { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 12, borderRadius: 12, marginBottom: 8, backgroundColor: BG, gap: 12 },
+  addrRowSel:     { backgroundColor: '#EDE7F6', borderWidth: 1, borderColor: ACCENT },
+  addrIconWrap:   { width: 36, height: 36, borderRadius: 18, backgroundColor: WHITE, alignItems: 'center', justifyContent: 'center' },
+  addrTextWrap:   { flex: 1 },
+  addrLabel:      { fontSize: 14, fontWeight: '600', color: TEXT_PRI },
+  addrLabelSel:   { color: ACCENT },
+  addrLine:       { fontSize: 12, color: TEXT_SEC, marginTop: 2 },
+  addBtn:         { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 14, justifyContent: 'center' },
+  addBtnText:     { fontSize: 14, fontWeight: '600', color: ACCENT },
 });
 
 // ─── CartItemRow ───────────────────────────────────────────────────────────────
@@ -301,11 +327,13 @@ export default function CartScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { items, addItem, removeItem, clearCart } = useCart();
   const { isAuthenticated, getAccessToken } = useAuth();
-  const { selectedAddress, isLoading: addrLoading } = useAddress();
+  const { selectedAddress, isLoading: addrLoading, autoSelectClosestAddress } = useAddress();
+  const { coords } = useLocation();
   const [placing, setPlacing]         = useState(false);
   const [authSheet, setAuthSheet]     = useState(false);
   const [addrSheet, setAddrSheet]     = useState(false);
-  const pendingOrder = useRef(false);  // true when user hit Place Order before login
+  const pendingOrder     = useRef(false); // true when user hit Place Order before login
+  const pendingAddrSheet = useRef(false); // true when navigated to LocationPicker to add address
 
   // Auto-trigger place order once user logs in from the auth sheet
   useEffect(() => {
@@ -319,6 +347,11 @@ export default function CartScreen({ navigation }) {
   const { hideTabBar, showTabBar } = useTabBar();
   useFocusEffect(useCallback(() => {
     hideTabBar();
+    // Re-open address sheet if user just came back from the add-address flow
+    if (pendingAddrSheet.current) {
+      pendingAddrSheet.current = false;
+      setAddrSheet(true);
+    }
     return () => showTabBar();
   }, [hideTabBar, showTabBar]));
 
@@ -385,7 +418,7 @@ export default function CartScreen({ navigation }) {
       return;
     }
     if (!selectedAddress) {
-      navigation.navigate('LocationPicker');
+      setAddrSheet(true);
       return;
     }
     setPlacing(true);
@@ -635,7 +668,13 @@ export default function CartScreen({ navigation }) {
     <AddressPickerSheet
       visible={addrSheet}
       onClose={() => setAddrSheet(false)}
-      onNavigateToAdd={() => navigation.navigate('LocationPicker')}
+      coords={coords}
+      autoSelectClosest={autoSelectClosestAddress}
+      onNavigateToAdd={() => {
+        pendingAddrSheet.current = true;
+        setAddrSheet(false);
+        navigation.navigate('LocationPicker');
+      }}
     />
     </>
   );

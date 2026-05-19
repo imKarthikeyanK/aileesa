@@ -73,6 +73,29 @@ function _webDevicePlatform() {
   return 'unknown';
 }
 
+/**
+ * Returns the actual OS the app is running on, normalised to a lowercase
+ * string that matches the x-oz-platform-os header convention:
+ *   ios | android | macos | windows | linux | unknown
+ *
+ * On native this is derived from Platform.OS.
+ * On web it is derived from the UA string (same logic as _webDevicePlatform
+ * but uses 'macos' instead of 'mac' for clarity).
+ */
+function _platformOs() {
+  if (Platform.OS === 'ios')     return 'ios';
+  if (Platform.OS === 'android') return 'android';
+  // web — detect the host machine's OS from the UA string
+  if (typeof navigator === 'undefined') return 'unknown';
+  const ua = navigator.userAgent.toLowerCase();
+  if (/android/.test(ua))            return 'android';
+  if (/iphone|ipad|ipod/.test(ua))   return 'ios';
+  if (/macintosh|mac os x/.test(ua)) return 'macos';
+  if (/windows/.test(ua))            return 'windows';
+  if (/linux/.test(ua))              return 'linux';
+  return 'unknown';
+}
+
 /** Two-letter country code derived from the device locale (e.g. 'IN', 'US'). */
 function _countryCode() {
   try {
@@ -107,7 +130,8 @@ function _timezone() {
  *  • x-oz-screen-size, x-oz-screen-density
  *  • x-oz-country-code, x-oz-tz
  *  • x-oz-uid, x-oz-loggedin
- *  • x-oz-device-platform  (web only — host OS of the browser)
+ *  • x-oz-platform-os  (always — actual OS: ios | android | macos | windows | linux)
+ *  • x-oz-device-platform  (web only — host OS of the browser, legacy)
  *
  * This function is synchronous and uses the cached device ID resolved at
  * startup.  If you need the resolved device ID before the first request, await
@@ -135,6 +159,7 @@ export function getHeaders({ accessToken } = {}) {
     'x-oz-tz':               _timezone(),
     'x-oz-uid':              _authState.uid ?? '',
     'x-oz-loggedin':         String(_authState.loggedIn),
+    'x-oz-platform-os':      _platformOs(),
   };
 
   if (accessToken) {

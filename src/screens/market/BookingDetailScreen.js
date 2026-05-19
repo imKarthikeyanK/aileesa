@@ -80,6 +80,7 @@ function Divider() {
 
 // ─── Tracking timeline ────────────────────────────────────────────────────────
 function TrackingTimeline({ steps }) {
+  if (!steps?.length) return null;
   return (
     <View style={styles.timeline}>
       {steps.map((step, idx) => {
@@ -150,8 +151,9 @@ export default function BookingDetailScreen({ route, navigation }) {
       if (!silent) setLoading(true);
       setError(null);
       const token = await getAccessToken();
-      const data = await OrdersAPI.getOrder(bookingId, { accessToken: token });
-      setOrder(data);
+      const res  = await OrdersAPI.getOrder(bookingId, { accessToken: token });
+      // Real API returns { status, data: {...order} }; mock returns the order directly.
+      setOrder(res?.data ?? res);
     } catch (e) {
       setError('Could not load booking details.');
     } finally {
@@ -285,7 +287,7 @@ export default function BookingDetailScreen({ route, navigation }) {
         {/* ── Order items ───────────────────────────────────────────────── */}
         <SectionCard title="ORDER ITEMS">
           <Text style={styles.storeName}>{order.store_name}</Text>
-          {order.items.map((item, idx) => (
+          {(order.items ?? []).map((item, idx) => (
             <View key={idx} style={styles.itemRow}>
               {item.image_url ? (
                 <Image source={{ uri: item.image_url }} style={styles.itemThumb} resizeMode="cover" />
@@ -319,7 +321,7 @@ export default function BookingDetailScreen({ route, navigation }) {
         <SectionCard title="DELIVERY ADDRESS">
           <View style={styles.addressRow}>
             <Ionicons name="location-outline" size={16} color={ACCENT} style={{ marginTop: 2 }} />
-            <Text style={styles.addressText}>{order.delivery_info?.address}</Text>
+            <Text style={styles.addressText}>{order.formatted_address ?? order.delivery_info?.address ?? '—'}</Text>
           </View>
         </SectionCard>
 
