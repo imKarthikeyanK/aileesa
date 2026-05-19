@@ -60,6 +60,7 @@ function _logError(method, url, status, error) {
   console.error(
     `[API] ✗ ${status ?? 'ERR'}  ${url}`,
     `\n  message: ${error?.message}`,
+    error?.data ? `\n  response: ${_preview(error.data)}` : '',
     error?.stack ? `\n  stack:\n${error.stack}` : '',
   );
 }

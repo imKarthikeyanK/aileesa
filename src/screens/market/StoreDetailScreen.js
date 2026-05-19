@@ -109,7 +109,7 @@ function QuantityControl({ quantity, onAdd, onRemove, maxReached }) {
 
 // ─── InventoryCard ─────────────────────────────────────────────────────────────
 
-function InventoryCard({ item, storeId, storeName, storeClosed }) {
+function InventoryCard({ item, storeId, storeName, businessId, storeClosed }) {
   const { addItem, removeItem, getItemQuantity } = useCart();
   const quantity   = getItemQuantity(item.id, storeId);
   const maxReached = item.max_quantity_per_item
@@ -128,6 +128,9 @@ function InventoryCard({ item, storeId, storeName, storeClosed }) {
   const handleAdd = useCallback(() => {
     addItem({
       id:                    item.id,
+      variant_id:            item.variant_id,
+      product_id:            item.product_id,
+      sku_code:              item.sku_code,
       name:                  item.name,
       unit:                  item.unit,
       price:                 item.price,
@@ -138,9 +141,11 @@ function InventoryCard({ item, storeId, storeName, storeClosed }) {
       image_url:             _imageUri(item.image_url) ?? (_isUrl(item.icon) ? item.icon : null),
       storeId,
       storeName,
+      business_id:           businessId,
+      multi_add:             item.multi_add,
       max_quantity_per_item: item.max_quantity_per_item,
     });
-  }, [item, storeId, storeName, addItem]);
+  }, [item, storeId, storeName, businessId, addItem]);
 
   const handleRemove = useCallback(() => {
     removeItem(item.id, storeId);
@@ -246,7 +251,7 @@ function InventoryCard({ item, storeId, storeName, storeClosed }) {
 
 // ─── SectionBlock ──────────────────────────────────────────────────────────────
 
-function SectionBlock({ section, storeId, storeName, storeClosed, onLayout, isLast }) {
+function SectionBlock({ section, storeId, storeName, businessId, storeClosed, onLayout, isLast }) {
   return (
     <View onLayout={onLayout}>
       <View style={styles.sectionHeader}>
@@ -256,7 +261,7 @@ function SectionBlock({ section, storeId, storeName, storeClosed, onLayout, isLa
 
       {section.items.map((item, idx) => (
         <React.Fragment key={item.id}>
-          <InventoryCard item={item} storeId={storeId} storeName={storeName} storeClosed={storeClosed} />
+          <InventoryCard item={item} storeId={storeId} storeName={storeName} businessId={businessId} storeClosed={storeClosed} />
           {idx < section.items.length - 1 && <View style={styles.itemDivider} />}
         </React.Fragment>
       ))}
@@ -279,9 +284,26 @@ export default function StoreDetailScreen({ route, navigation }) {
   const { hideTabBar } = useTabBar();
   useFocusEffect(useCallback(() => {
     hideTabBar();
-    // No cleanup showTabBar() — StoreListingScreen restores it on re-focus
-    // to avoid the animation race that let the tab bar flash over Cart’s CTA.
-  }, [hideTabBar]));
+    // No cleanup showTabBar() — StoreListingScreen restores it on re-focus.
+
+    // Refresh store detail on every visit
+    getStoreDetail(routeStore.id)
+      .then(res => {
+        const raw    = res.data ?? res;
+        const detail = raw.data && typeof raw.data === 'object' && !Array.isArray(raw.data)
+          ? raw.data
+          : raw;
+        setStoreDetail(detail);
+      })
+      .catch(() => {});
+
+    // Reset and reload inventory from page 1 on every visit (e.g. returning from Cart)
+    invPageRef.current    = 1;
+    invHasNextRef.current = false;
+    isLoadingInvRef.current = false;
+    setSections([]);
+    fetchInventory(1);
+  }, [hideTabBar, routeStore.id, fetchInventory]));
 
   const [activeSection, setActiveSection] = useState(0);
   const [toastMsg, setToastMsg] = useState('');
@@ -289,19 +311,6 @@ export default function StoreDetailScreen({ route, navigation }) {
 
   // ── Store detail (enriched by API) ────────────────────────────────────────
   const [storeDetail, setStoreDetail] = useState(routeStore);
-
-  useEffect(() => {
-    getStoreDetail(routeStore.id)
-      .then(res => {
-        // API double-nested: { status, data: { data: {...store...} } }
-        const raw    = res.data ?? res;
-        const detail = raw.data && typeof raw.data === 'object' && !Array.isArray(raw.data)
-          ? raw.data
-          : raw;
-        setStoreDetail(detail);
-      })
-      .catch(() => showToast('Could not load store details.'));
-  }, [routeStore.id]);
 
   // ── Inventory ──────────────────────────────────────────────────────────────
   const [sections,    setSections]    = useState([]);
@@ -346,8 +355,6 @@ export default function StoreDetailScreen({ route, navigation }) {
       setInvLoading(false);
     }
   }, [routeStore.id]);
-
-  useEffect(() => { fetchInventory(1); }, []);
 
   // Scroll listener drives pagination
   const handleScrollListener = useCallback((event) => {
@@ -628,6 +635,7 @@ export default function StoreDetailScreen({ route, navigation }) {
             section={section}
             storeId={routeStore.id}
             storeName={storeDetail.name}
+            businessId={storeDetail.business_id}
             storeClosed={isStoreClosed}
             isLast={sIdx === sections.length - 1 && !invHasNext}
             onLayout={e => { sectionOffsets.current[sIdx] = e.nativeEvent.layout.y; }}

@@ -157,6 +157,14 @@ function CartItemRow({ item, onAdd, onRemove }) {
       : 0;
   const lineTotal = item.price * item.quantity;
 
+  // Match PLP logic exactly:
+  // maxReached is false when no cap is set (not ?? 99)
+  const maxReached = item.max_quantity_per_item
+    ? item.quantity >= item.max_quantity_per_item
+    : false;
+  // non-multi_add items can only have 1 unit — + is always disabled in cart
+  const addDisabled = maxReached || !item.multi_add;
+
   return (
     <View style={styles.itemRow}>
       {/* Icon swatch */}
@@ -199,15 +207,12 @@ function CartItemRow({ item, onAdd, onRemove }) {
           </TouchableOpacity>
           <Text style={styles.qtyCount}>{item.quantity}</Text>
           <TouchableOpacity
-            style={[
-              styles.qtyBtn,
-              item.quantity >= (item.max_quantity_per_item ?? 99) && styles.qtyBtnDisabled,
-            ]}
+            style={[styles.qtyBtn, addDisabled && styles.qtyBtnDisabled]}
             onPress={onAdd}
             activeOpacity={0.8}
-            disabled={item.quantity >= (item.max_quantity_per_item ?? 99)}
+            disabled={addDisabled}
           >
-            <Ionicons name="add" size={14} color={WHITE} />
+            <Ionicons name="add" size={14} color={addDisabled ? 'rgba(255,255,255,0.4)' : WHITE} />
           </TouchableOpacity>
         </View>
       </View>
@@ -386,23 +391,32 @@ export default function CartScreen({ navigation }) {
     setPlacing(true);
     try {
       const token = await getAccessToken();
-      const deliveryInfo = {
-        address: selectedAddress.formatted_address ?? selectedAddress.address_line_1,
-        lat:     selectedAddress.lat,
-        lng:     selectedAddress.lng,
-      };
+      const firstItem = items[0];
+      const orderItems = items.map(i => ({
+        id:         i.id,
+        variant_id: i.variant_id,
+        product_id: i.product_id,
+        sku_code:   i.sku_code,
+        quantity:   i.quantity,
+        price:      i.price,
+        base_price: i.base_price,
+      }));
       const order = await OrdersAPI.placeOrder({
-        items,
-        subtotal,
-        delivery,
-        platform,
-        grandTotal,
-        storeGroups,
-        delivery_info: deliveryInfo,
-        accessToken: token,
+        store_id:        firstItem.storeId,
+        business_id:     firstItem.business_id,
+        items:           orderItems,
+        sub_total:       subtotal,
+        delivery_fee:    delivery,
+        platform_fee:    platform,
+        grand_total:     grandTotal,
+        user_address_id: selectedAddress.id,
+        payment_method:  'COD',
+        delivery_time:   '30_mins',
+        accessToken:     token,
       });
       clearCart();
-      navigation.replace('BookingDetail', { bookingId: order.id });
+      const orderId = order?.data?.id ?? order?.id;
+      navigation.replace('BookingDetail', { bookingId: orderId });
     } catch (e) {
       // TODO: surface error toast
     } finally {
@@ -443,43 +457,6 @@ export default function CartScreen({ navigation }) {
         contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Delivery address ──────────────────────────────────────────── */}
-        <View style={styles.addressCard}>
-          <View style={styles.addressCardHeader}>
-            <View style={styles.addressCardLeft}>
-              <Ionicons name="location" size={15} color={ACCENT} />
-              <Text style={styles.addressCardTitle}>Deliver to</Text>
-            </View>
-            {isAuthenticated && (
-              <TouchableOpacity onPress={() => setAddrSheet(true)} activeOpacity={0.7}>
-                <Text style={styles.addressChangeBtn}>Change</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-          {selectedAddress ? (
-            <>
-              <Text style={styles.addressLabel}>{selectedAddress.label}</Text>
-              <Text style={styles.addressLine} numberOfLines={2}>
-                {selectedAddress.formatted_address ?? selectedAddress.address_line_1}
-              </Text>
-              {selectedAddress.receiver_name ? (
-                <Text style={styles.addressReceiver}>
-                  {selectedAddress.receiver_name} · {selectedAddress.receiver_phone}
-                </Text>
-              ) : null}
-            </>
-          ) : (
-            <TouchableOpacity
-              style={styles.addAddressRow}
-              onPress={() => navigation.navigate('LocationPicker')}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="add-circle-outline" size={16} color={ACCENT} />
-              <Text style={styles.addAddressText}>Add a delivery address</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
         {/* ── Store groups */}
         {storeGroups.map((group, gIdx) => (
           <View key={group.storeId}>
@@ -616,6 +593,15 @@ export default function CartScreen({ navigation }) {
 
       {/* ── Sticky CTA ───────────────────────────────────────────────────── */}
       <View style={[styles.ctaContainer, { paddingBottom: insets.bottom + 12 }]}>
+        {selectedAddress?.formatted_address ? (
+          <View style={styles.deliverToBar}>
+            <Ionicons name="location" size={13} color={ACCENT} />
+            <Text style={styles.deliverToText} numberOfLines={1}>
+              <Text style={styles.deliverToBold}>Delivering to </Text>
+              {selectedAddress.formatted_address}
+            </Text>
+          </View>
+        ) : null}
         <Animated.View style={{ transform: [{ scale: ctaPulse }] }}>
         <TouchableOpacity
           style={[styles.placeOrderBtn, (placing || belowMinimum) && styles.placeOrderBtnBusy]}
@@ -1104,9 +1090,24 @@ const styles = StyleSheet.create({
   ctaContainer: {
     backgroundColor: SURFACE,
     paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingTop: 10,
     borderTopWidth: StyleSheet.hairlineWidth * 2,
     borderTopColor: BORDER,
+  },
+  deliverToBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginBottom: 10,
+  },
+  deliverToText: {
+    flex: 1,
+    fontSize: 12,
+    color: TEXT_SEC,
+  },
+  deliverToBold: {
+    fontWeight: '600',
+    color: TEXT_PRI,
   },
   placeOrderBtn: {
     borderRadius: 14,

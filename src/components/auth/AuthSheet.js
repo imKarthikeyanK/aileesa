@@ -204,17 +204,22 @@ function OtpStep({ requestId, phone, devOtp, onSuccess, onBack }) {
 
   // ─ Input ──────────────────────────────────────────────────────────────────────
   const handleChange = (text) => {
-    setValue(sanitise(text));
+    const clean = sanitise(text);
+    setValue(clean);
     setError('');
+    if (clean.length === OTP_LENGTH) {
+      handleVerify(clean);
+    }
   };
 
   // ─ Verify ─────────────────────────────────────────────────────────────────────
-  const handleVerify = async () => {
-    if (!canVerify) return;
+  const handleVerify = async (overrideValue) => {
+    const otp = overrideValue ?? value;
+    if (otp.length !== OTP_LENGTH || loading) return;
     setError('');
     setLoading(true);
     try {
-      await verifyOtp(currentRequestId, value);
+      await verifyOtp(currentRequestId, otp);
       onSuccess();
     } catch (e) {
       setError(e.message || 'Verification failed. Please try again.');

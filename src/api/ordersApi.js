@@ -180,7 +180,7 @@ export const OrdersAPI = {
    * POST /orders/place-order
    * Places a new order and returns the created booking.
    */
-  async placeOrder({ store_id, store_name, business_id, items, sub_total, tax, delivery_fee, platform_fee, grand_total, payment_method, delivery_info, delivery_time, accessToken } = {}) {
+  async placeOrder({ store_id, business_id, items, sub_total, delivery_fee, platform_fee, grand_total, user_address_id, payment_method, delivery_time, accessToken } = {}) {
     if (USE_MOCK) {
       await new Promise(r => setTimeout(r, 1400));
 
@@ -189,31 +189,30 @@ export const OrdersAPI = {
         id:            `BK-${makeid(6)}`,
         created_at:    now,
         store_id:      store_id ?? 'unknown',
-        store_name:    store_name ?? 'Store',
+        store_name:    'Store',
         items,
         sub_total,
-        tax:           tax ?? 0,
         delivery_fee,
         platform_fee,
         grand_total,
-        status:        'processing',
+        status:        'payment_initiated',
         delivered_at:  null,
-        delivery_info,
+        user_address_id,
         payment_method: payment_method ?? 'COD',
-        payment_status: 'paid',
+        payment_status: 'initiated',
         delivery_time,
         invoice_url:   null,
         tracking:      buildTracking(now),
       };
 
       _orders.push(newOrder);
-      return { ...newOrder };
+      return { status: 201, data: { ...newOrder } };
     }
 
     return _post('/orders/place-order', {
-      store_id, store_name, business_id, items, sub_total, tax,
-      delivery_fee, platform_fee, grand_total, payment_method,
-      delivery_info, delivery_time,
+      store_id, business_id, items, sub_total,
+      delivery_fee, platform_fee, grand_total,
+      user_address_id, payment_method, delivery_time,
     }, { accessToken });
   },
 };
