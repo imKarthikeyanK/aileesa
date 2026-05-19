@@ -167,7 +167,7 @@ export default function BookingDetailScreen({ route, navigation }) {
   const onRefresh = () => { setRefreshing(true); load(true); };
 
   const handleShare = async () => {
-    const message = `My Aileesa order #${order.id} — ₹${order.grand_total} from ${order.store_name}.`;
+    const message = `My Aileesa order #${order.booking_id ?? order.id} — ₹${order.grand_total} from ${order.store_name}.`;
     if (Platform.OS === 'web') {
       // navigator.share requires HTTPS and is not universally available;
       // fall back to clipboard copy when unavailable.
@@ -236,7 +236,7 @@ export default function BookingDetailScreen({ route, navigation }) {
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={20} color={TEXT_PRI} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>#{order.id}</Text>
+        <Text style={styles.headerTitle}>#{order.booking_id ?? order.id}</Text>
         <TouchableOpacity style={styles.backBtn} onPress={handleShare}>
           <Ionicons name="share-outline" size={20} color={TEXT_PRI} />
         </TouchableOpacity>
@@ -293,7 +293,7 @@ export default function BookingDetailScreen({ route, navigation }) {
                 <Image source={{ uri: item.image_url }} style={styles.itemThumb} resizeMode="cover" />
               ) : null}
               <Text style={styles.itemQty}>{item.quantity}×</Text>
-              <Text style={styles.itemName}>{item.name}</Text>
+              <Text style={styles.itemName}>{item.variant_name ?? item.name ?? item.sku_code}</Text>
               <Text style={styles.itemPrice}>₹{item.price * item.quantity}</Text>
             </View>
           ))}
@@ -313,7 +313,7 @@ export default function BookingDetailScreen({ route, navigation }) {
             value={order.payment_status.charAt(0).toUpperCase() + order.payment_status.slice(1)}
             accent={order.payment_status === 'refunded'}
           />
-          <InfoRow label="Booking ID" value={order.id} />
+          <InfoRow label="Booking ID" value={order.booking_id ?? order.id} />
           <InfoRow label="Order Date"  value={formatDateTime(order.created_at)} />
         </SectionCard>
 

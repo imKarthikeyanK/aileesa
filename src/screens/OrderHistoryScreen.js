@@ -27,9 +27,14 @@ const WHITE     = '#FFFFFF';
 
 // ─── Status pill config ────────────────────────────────────────────────────────
 const STATUS_CONFIG = {
+  // Real API order statuses
+  booked:     { label: 'Processing', bg: '#EDE9FE', color: '#7C3AED', icon: 'time' },
+  completed:  { label: 'Delivered',  bg: '#D1FAE5', color: SUCCESS,   icon: 'checkmark-circle' },
+  refunded:   { label: 'Refunded',   bg: '#FEF3C7', color: AMBER,     icon: 'refresh-circle' },
+  cancelled:  { label: 'Cancelled',  bg: '#FEE2E2', color: ACCENT,    icon: 'close-circle' },
+  // Fallback aliases
   delivered:  { label: 'Delivered',  bg: '#D1FAE5', color: SUCCESS,   icon: 'checkmark-circle' },
   processing: { label: 'Processing', bg: '#EDE9FE', color: '#7C3AED', icon: 'time' },
-  cancelled:  { label: 'Cancelled',  bg: '#FEE2E2', color: ACCENT,    icon: 'close-circle' },
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -42,11 +47,12 @@ function formatDate(iso) {
 
 // ─── OrderCard ────────────────────────────────────────────────────────────────
 function OrderCard({ order, onPress }) {
-  const cfg = STATUS_CONFIG[order.status] ?? STATUS_CONFIG.processing;
-  const itemSummary = order.items
+  const cfg = STATUS_CONFIG[order.status] ?? STATUS_CONFIG.booked;
+  const items = Array.isArray(order.items) ? order.items : [];
+  const itemSummary = items
     .slice(0, 2)
-    .map(i => `${i.name}${i.quantity > 1 ? ` ×${i.quantity}` : ''}`)
-    .join(', ') + (order.items.length > 2 ? ` +${order.items.length - 2} more` : '');
+    .map(i => typeof i === 'string' ? i : `${i.name}${i.quantity > 1 ? ` ×${i.quantity}` : ''}`)
+    .join(', ') + (items.length > 2 ? ` +${items.length - 2} more` : '');
 
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.72}>
@@ -91,8 +97,9 @@ export default function OrderHistoryScreen({ navigation }) {
       if (!silent) setLoading(true);
       setError(null);
       const token = await getAccessToken();
-      const data = await OrdersAPI.getOrders({ accessToken: token });
-      setOrders(data);
+      const res = await OrdersAPI.getOrders({ accessToken: token });
+      // Real API returns { status, data: [...orders], pagination: {...} }
+      setOrders(res?.data ?? res);
     } catch (e) {
       setError('Could not load orders. Please try again.');
     } finally {

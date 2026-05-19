@@ -448,8 +448,9 @@ export default function CartScreen({ navigation }) {
         accessToken:     token,
       });
       clearCart();
-      const orderId = order?.data?.id ?? order?.id;
-      navigation.replace('BookingDetail', { bookingId: orderId });
+      const orderId   = order?.data?.id ?? order?.id;
+      const displayId = order?.data?.booking_id ?? order?.booking_id;
+      navigation.replace('OrderSuccess', { bookingId: orderId, displayId });
     } catch (e) {
       // TODO: surface error toast
     } finally {
