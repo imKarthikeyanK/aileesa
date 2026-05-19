@@ -51,8 +51,19 @@ export const AddressAPI = {
    * 200: { status: 200, data: [ ...address objects ] }
    */
   async getUserAddresses({ accessToken } = {}) {
-    const res = await _get(`${BASE_URL}/user-addresses`, { accessToken });
+    const res = await _get(`${AILEESA_API_URL}/user-addresses`, { accessToken });
     return res.data ?? [];
+  },
+
+  /**
+   * GET {base_url}/user-addresses/:id
+   * Returns a single saved address object.
+   *
+   * 200: { status: 200, data: { ...address object } }
+   */
+  async getAddress(id, { accessToken } = {}) {
+    const res = await _get(`${AILEESA_API_URL}/user-addresses/${id}`, { accessToken });
+    return res.data ?? null;
   },
 
   /**
@@ -63,7 +74,7 @@ export const AddressAPI = {
    * payload: { label?, is_default?, receiver_name?, receiver_phone? }
    */
   async updateUserAddress(id, payload, { accessToken } = {}) {
-    return _patch(`${BASE_URL}/user-addresses/${id}`, payload, { accessToken });
+    return _patch(`${AILEESA_API_URL}/user-addresses/${id}`, payload, { accessToken });
   },
 };
 

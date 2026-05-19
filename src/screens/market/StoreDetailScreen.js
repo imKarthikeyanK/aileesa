@@ -62,6 +62,16 @@ const SUCCESS      = '#10B981';
 const HERO_H      = 280;
 const CARD_OVERLAP = 32;
 
+// ─── Helpers ───────────────────────────────────────────────────────────────────
+
+// Normalise image field to a URI string (handles string, array, or null)
+function _imageUri(v) {
+  if (!v) return null;
+  if (typeof v === 'string') return v || null;
+  if (Array.isArray(v)) return v.find(x => typeof x === 'string' && x) ?? null;
+  return null;
+}
+
 // ─── StatPill ─────────────────────────────────────────────────────────────────
 
 function StatPill({ icon, value, label }) {
@@ -125,7 +135,7 @@ function InventoryCard({ item, storeId, storeName, storeClosed }) {
       icon:                  item.icon,
       icon_bg:               item.icon_bg,
       icon_color:            item.icon_color,
-      image_url:             _imageUri(item.image_url),
+      image_url:             _imageUri(item.image_url) ?? (_isUrl(item.icon) ? item.icon : null),
       storeId,
       storeName,
       max_quantity_per_item: item.max_quantity_per_item,
@@ -139,16 +149,24 @@ function InventoryCard({ item, storeId, storeName, storeClosed }) {
   // When the store is closed every card is treated as non-interactive
   const cardInactive = !item.active || storeClosed;
 
+  // Real API stores the image URL in `icon` (a CDN URL); `image_url` is absent.
+  // Prefer image_url → icon-as-URL → fall back to icon name for Ionicons.
+  const _isUrl = v => typeof v === 'string' && v.startsWith('http');
+  const itemImageUri = _imageUri(item.image_url) ?? (_isUrl(item.icon) ? item.icon : null);
+  const itemIconName = !_isUrl(item.icon) ? (item.icon || 'cube-outline') : 'cube-outline';
+  const itemIconBg   = item.icon_bg   || '#F0F1F8';
+  const itemIconClr  = item.icon_color || (cardInactive ? TEXT_MUTED : ACCENT);
+
   return (
     <View style={[styles.productCard, cardInactive && styles.productCardInactive]}>
       {/* Icon swatch */}
-      <View style={[styles.swatch, { backgroundColor: item.icon_bg ?? '#F0F1F8' }]}>
-        {item.image_url
-          ? <Image source={{ uri: _imageUri(item.image_url) }} style={styles.swatchImage} resizeMode="cover" />
+      <View style={[styles.swatch, { backgroundColor: itemIconBg }]}>
+        {itemImageUri
+          ? <Image source={{ uri: itemImageUri }} style={styles.swatchImage} resizeMode="cover" />
           : <Ionicons
-              name={item.icon ?? 'cube-outline'}
+              name={itemIconName}
               size={28}
-              color={cardInactive ? TEXT_MUTED : (item.icon_color ?? ACCENT)}
+              color={itemIconClr}
             />
         }
         {item.badge && item.active && !storeClosed && (
@@ -274,7 +292,14 @@ export default function StoreDetailScreen({ route, navigation }) {
 
   useEffect(() => {
     getStoreDetail(routeStore.id)
-      .then(res => setStoreDetail(res.data))
+      .then(res => {
+        // API double-nested: { status, data: { data: {...store...} } }
+        const raw    = res.data ?? res;
+        const detail = raw.data && typeof raw.data === 'object' && !Array.isArray(raw.data)
+          ? raw.data
+          : raw;
+        setStoreDetail(detail);
+      })
       .catch(() => showToast('Could not load store details.'));
   }, [routeStore.id]);
 
@@ -294,15 +319,21 @@ export default function StoreDetailScreen({ route, navigation }) {
     try {
       const res = await getInventories({ storeId: routeStore.id, page: pageNum });
       console.log('[SDS] inventory raw response page', pageNum, ':', JSON.stringify(res, null, 2));
-      // Real API uses { section: "Name", items: [...] }; mock uses { id, title, items }.
-      // Normalise both shapes into { id, title, items }.
-      const rawRows    = Array.isArray(res.data) ? res.data : [];
+      // API wraps its own envelope: { status, data: { data: [...], pagination: {} } }
+      // Support both the wrapped shape and a flat { data: [...], pagination: {} } shape.
+      const envelope  = res.data && typeof res.data === 'object' && Array.isArray(res.data.data)
+        ? res.data
+        : res;
+      const rawRows    = Array.isArray(envelope.data) ? envelope.data : [];
       const rows       = rawRows.map((s, i) => ({
         id:    s.id    ?? `section-${i}`,
-        title: s.title ?? s.section ?? `Section ${i + 1}`,
+        // Format snake_case names like "dairy_milk_curd" → "Dairy Milk Curd"
+        title: s.title ?? (s.section
+          ? s.section.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+          : `Section ${i + 1}`),
         items: Array.isArray(s.items) ? s.items : [],
       }));
-      const pagination = res.pagination && typeof res.pagination === 'object' ? res.pagination : {};
+      const pagination = envelope.pagination && typeof envelope.pagination === 'object' ? envelope.pagination : {};
       setSections(prev => pageNum === 1 ? rows : [...prev, ...rows]);
       invHasNextRef.current = pagination.has_next ?? false;
       invPageRef.current    = pageNum;
@@ -329,17 +360,26 @@ export default function StoreDetailScreen({ route, navigation }) {
   }, [fetchInventory]);
 
   // ── Normalise camel/snake variants from routeStore (L1) vs API detail ─────
-  // cover_media may be a string or an array — extract the first valid URL.
-  // Real API returns banner_url / image_url (no cover_media or cover_url field).
-  const _rawMedia    = storeDetail.cover_media ?? storeDetail.cover_url
-                    ?? storeDetail.banner_url  ?? storeDetail.image_url;
-  const coverMedia   = !_rawMedia
-    ? null
-    : typeof _rawMedia === 'string'
-      ? (_rawMedia || null)
-      : Array.isArray(_rawMedia)
-        ? (_rawMedia.find(v => typeof v === 'string' && v) ?? null)
-        : null;
+  // cover_media: API returns [{ url: "...", type: "image" }] — extract .url from objects.
+  // Fallback chain: cover_media → cover_url → banner_url → image_url
+  const _extractUrl = v => {
+    if (!v) return null;
+    if (typeof v === 'string') return v || null;
+    if (Array.isArray(v)) {
+      for (const item of v) {
+        if (typeof item === 'string' && item) return item;
+        if (item && typeof item === 'object' && typeof item.url === 'string' && item.url) return item.url;
+      }
+      return null;
+    }
+    if (typeof v === 'object' && typeof v.url === 'string' && v.url) return v.url;
+    return null;
+  };
+  const coverMedia = _extractUrl(storeDetail.cover_media)
+    ?? _extractUrl(storeDetail.cover_url)
+    ?? _extractUrl(storeDetail.banner_url)
+    ?? _extractUrl(storeDetail.image_url)
+    ?? null;
   // Use || (not ??) so empty strings '' fall through to the defaults
   const coverBg      = storeDetail.cover_bg     || storeDetail.coverBg    || '#F0F1F8';
   const iconColor    = storeDetail.icon_color   || storeDetail.iconColor   || '#6200EE';
@@ -483,14 +523,10 @@ export default function StoreDetailScreen({ route, navigation }) {
             </>
           )}
           {storeDetail.tag && (
-            <View style={[styles.heroTag, { backgroundColor: tagColor }]}>
+            <View style={[styles.heroTag, { backgroundColor: tagColor, marginBottom: 20 }]}>
               <Text style={styles.heroTagText}>{storeDetail.tag}</Text>
             </View>
           )}
-          <View style={styles.heroRating}>
-            <Ionicons name="star" size={11} color={AMBER} />
-            <Text style={styles.heroRatingText}>{storeDetail.rating}</Text>
-          </View>
         </Animated.View>
 
         {/* Info card (overlaps hero) */}
@@ -515,7 +551,7 @@ export default function StoreDetailScreen({ route, navigation }) {
             </View>
           ) : null}
 
-          <View style={styles.infoDivider} />
+          <View style={[styles.infoDivider, { marginTop: 0 }]} />
 
           <View style={styles.statsRow}>
             <StatPill icon="time-outline"     value={deliveryTime}         label="Delivery" />
@@ -536,19 +572,6 @@ export default function StoreDetailScreen({ route, navigation }) {
               </View>
             </>
           )}
-
-          {/* Call Store + Share CTA row — commented out; share moved to floating top-right button */}
-          {/* <View style={styles.infoDivider} />
-          <View style={styles.ctaRow}>
-            <TouchableOpacity style={styles.callBtn} activeOpacity={0.85}>
-              <Ionicons name="call-outline" size={16} color={ACCENT} />
-              <Text style={styles.callBtnText}>Call Store</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.shareBtn} activeOpacity={0.85}>
-              <Ionicons name="share-social-outline" size={16} color={WHITE} />
-              <Text style={styles.shareBtnText}>Share</Text>
-            </TouchableOpacity>
-          </View> */}
         </View>
 
         {/* Category tab strip */}

@@ -9,8 +9,10 @@ import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   ActivityIndicator, StatusBar, Linking, Share, Platform, Image,
+  RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuth } from '../../context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 import { OrdersAPI } from '../../api/ordersApi';
 
@@ -135,26 +137,32 @@ function ActionBtn({ icon, label, onPress, disabled }) {
 // ─── Screen ───────────────────────────────────────────────────────────────────
 export default function BookingDetailScreen({ route, navigation }) {
   const insets    = useSafeAreaInsets();
+  const { getAccessToken } = useAuth();
   const { bookingId } = route.params ?? {};
 
-  const [order,   setOrder]   = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState(null);
+  const [order,     setOrder]     = useState(null);
+  const [loading,   setLoading]   = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error,     setError]     = useState(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       setError(null);
-      const data = await OrdersAPI.getOrder(bookingId);
+      const token = await getAccessToken();
+      const data = await OrdersAPI.getOrder(bookingId, { accessToken: token });
       setOrder(data);
     } catch (e) {
       setError('Could not load booking details.');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  }, [bookingId]);
+  }, [bookingId, getAccessToken]);
 
   useEffect(() => { load(); }, [load]);
+
+  const onRefresh = () => { setRefreshing(true); load(true); };
 
   const handleShare = async () => {
     const message = `My Aileesa order #${order.id} — ₹${order.grand_total} from ${order.store_name}.`;
@@ -235,6 +243,16 @@ export default function BookingDetailScreen({ route, navigation }) {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 32, gap: 14 }}
+        refreshControl={
+          Platform.OS !== 'web' ? (
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[ACCENT]}
+              tintColor={ACCENT}
+            />
+          ) : undefined
+        }
       >
         {/* ── Status banner ─────────────────────────────────────────────── */}
         <View style={[styles.statusBanner, { backgroundColor: cfg.bg }]}>

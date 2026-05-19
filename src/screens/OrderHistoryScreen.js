@@ -10,6 +10,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { OrdersAPI } from '../api/ordersApi';
+import { useAuth } from '../context/AuthContext';
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 const BG        = '#F5F6FA';
@@ -79,6 +80,7 @@ function OrderCard({ order, onPress }) {
 // ─── Screen ───────────────────────────────────────────────────────────────────
 export default function OrderHistoryScreen({ navigation }) {
   const insets = useSafeAreaInsets();
+  const { getAccessToken } = useAuth();
   const [orders,    setOrders]    = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -88,7 +90,8 @@ export default function OrderHistoryScreen({ navigation }) {
     try {
       if (!silent) setLoading(true);
       setError(null);
-      const data = await OrdersAPI.getOrders();
+      const token = await getAccessToken();
+      const data = await OrdersAPI.getOrders({ accessToken: token });
       setOrders(data);
     } catch (e) {
       setError('Could not load orders. Please try again.');
@@ -96,7 +99,7 @@ export default function OrderHistoryScreen({ navigation }) {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [getAccessToken]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -127,21 +130,36 @@ export default function OrderHistoryScreen({ navigation }) {
             <Text style={styles.retryBtnText}>Try Again</Text>
           </TouchableOpacity>
         </View>
-      ) : orders.length === 0 ? (
-        <View style={styles.centered}>
-          <Ionicons name="bag-outline" size={48} color={BORDER} />
-          <Text style={styles.emptyTitle}>No orders yet</Text>
-          <Text style={styles.emptySubtitle}>Place your first order and it'll show up here.</Text>
-        </View>
       ) : (
         <FlatList
           data={orders}
           keyExtractor={o => o.id}
-          contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 24 }}
+          contentContainerStyle={
+            orders.length === 0
+              ? styles.emptyListContent
+              : { padding: 16, paddingBottom: insets.bottom + 24 }
+          }
           ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
           showsVerticalScrollIndicator={false}
-          // Pull-to-refresh gesture has no effect on web; exclude it entirely to
-          // avoid rendering a stub that may flicker on scroll.
+          ListEmptyComponent={
+            <View style={styles.emptyBox}>
+              <View style={styles.emptyIllustration}>
+                <Ionicons name="bag-outline" size={48} color={BORDER} />
+              </View>
+              <Text style={styles.emptyTitle}>No orders yet</Text>
+              <Text style={styles.emptySubtitle}>
+                Looks like you haven't ordered anything. Explore stores nearby and place your first order!
+              </Text>
+              <TouchableOpacity
+                style={styles.exploreBtn}
+                onPress={() => navigation.navigate('Market')}
+                activeOpacity={0.82}
+              >
+                <Ionicons name="storefront-outline" size={16} color={WHITE} style={{ marginRight: 6 }} />
+                <Text style={styles.exploreBtnText}>Explore Stores</Text>
+              </TouchableOpacity>
+            </View>
+          }
           refreshControl={
             Platform.OS !== 'web' ? (
               <RefreshControl
@@ -198,8 +216,6 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   errorText:   { fontSize: 14, color: TEXT_SEC, textAlign: 'center' },
-  emptyTitle:  { fontSize: 17, fontWeight: '700', color: TEXT_PRI },
-  emptySubtitle: { fontSize: 13, color: TEXT_MUTED, textAlign: 'center', lineHeight: 20 },
   retryBtn: {
     marginTop: 4,
     paddingHorizontal: 22,
@@ -208,6 +224,39 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   retryBtnText: { color: WHITE, fontWeight: '700', fontSize: 14 },
+
+  // ── Empty state ───────────────────────────────────────────────────────────
+  emptyListContent: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+  },
+  emptyBox: {
+    alignItems: 'center',
+    gap: 10,
+  },
+  emptyIllustration: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: '#F1F0FB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  emptyTitle:  { fontSize: 18, fontWeight: '700', color: TEXT_PRI },
+  emptySubtitle: { fontSize: 13, color: TEXT_MUTED, textAlign: 'center', lineHeight: 20 },
+  exploreBtn: {
+    marginTop: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 22,
+    paddingVertical: 12,
+    backgroundColor: ACCENT,
+    borderRadius: 22,
+  },
+  exploreBtnText: { color: WHITE, fontWeight: '700', fontSize: 14 },
 
   // ── Card ──────────────────────────────────────────────────────────────────
   card: {

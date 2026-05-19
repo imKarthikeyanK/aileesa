@@ -38,6 +38,7 @@ import { getStores } from '../../api/storeApi';
 import { useLocation } from '../../context/LocationContext';
 import { useTabBar, TAB_BAR_H } from '../../context/TabBarContext';
 import { useCart } from '../../context/CartContext';
+import { useAddress } from '../../context/AddressContext';
 import CartFloatingCard from '../../components/CartFloatingCard';
 import Toast from '../../components/Toast';
 import * as Location from 'expo-location';
@@ -393,6 +394,9 @@ export default function StoreListingScreen({ navigation }) {
     }
   }, [hideTabBar, showTabBar]);
 
+  // ── Address ─────────────────────────────────────────────────────────────────
+  const { selectedAddress } = useAddress();
+
   // ── Cart ──────────────────────────────────────────────────────────────────────
   const { items } = useCart();
   const totalCartItems = items.reduce((s, i) => s + i.quantity, 0);
@@ -711,8 +715,12 @@ export default function StoreListingScreen({ navigation }) {
           >
             <Ionicons name="location" size={13} color={ACCENT} />
             <Text style={styles.locationText} numberOfLines={1}>
-              Delivering to{' '}
-              <Text style={styles.locationBold}>Current Location</Text>
+              {selectedAddress?.formatted_address ? (
+                <>
+                  <Text style={styles.locationBold}>Delivering to </Text>
+                  {selectedAddress.formatted_address}
+                </>
+              ) : 'Set delivery address'}
             </Text>
             <Ionicons name="chevron-down" size={13} color={TEXT_PRI} />
           </TouchableOpacity>

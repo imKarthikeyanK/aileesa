@@ -295,7 +295,7 @@ function OrderSuccess({ insets }) {
 export default function CartScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { items, addItem, removeItem, clearCart } = useCart();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, getAccessToken } = useAuth();
   const { selectedAddress, isLoading: addrLoading } = useAddress();
   const [placing, setPlacing]         = useState(false);
   const [authSheet, setAuthSheet]     = useState(false);
@@ -385,6 +385,7 @@ export default function CartScreen({ navigation }) {
     }
     setPlacing(true);
     try {
+      const token = await getAccessToken();
       const deliveryInfo = {
         address: selectedAddress.formatted_address ?? selectedAddress.address_line_1,
         lat:     selectedAddress.lat,
@@ -398,6 +399,7 @@ export default function CartScreen({ navigation }) {
         grandTotal,
         storeGroups,
         delivery_info: deliveryInfo,
+        accessToken: token,
       });
       clearCart();
       navigation.replace('BookingDetail', { bookingId: order.id });

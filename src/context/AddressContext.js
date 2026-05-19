@@ -6,22 +6,28 @@
  * ANONYMOUS (not logged in)
  * ─────────────────────────
  * User fills the LocationPicker form → address created via API with
- * is_anonymous=true → full address data stored in-memory → exposed as
- * selectedAddress throughout the app (used in order delivery_info).
+ * is_anonymous=true → full address data + server id stored in-memory →
+ * exposed as selectedAddress throughout the app.
+ * anonymousAddressId is exposed so LocationPicker can prefill the form
+ * on revisit using GET /user-addresses/:id.
  *
  * AUTHENTICATED (logged in)
  * ─────────────────────────
- * On login → addresses fetched from GET /user-addresses → default (or first)
- * auto-selected.  User can create new addresses or switch selection from
- * CartScreen.
+ * On login → addresses fetched from GET /user-addresses → closest address
+ * auto-selected based on haversine distance from current coords (when
+ * available), otherwise default (or first) address is selected.
+ * autoSelectClosestAddress(coords) can be called at any time to re-run
+ * the proximity selection after coords become available.
  *
  * Exposes via useAddress():
- *   selectedAddress        — currently active delivery address object | null
- *   addresses              — list of saved addresses (authenticated only)
- *   isLoading              — true while fetching addresses
- *   selectAddress(addr)    — manually set selected address from the list
+ *   selectedAddress             — currently active delivery address object | null
+ *   addresses                  — list of saved addresses (authenticated only)
+ *   isLoading                  — true while fetching addresses
+ *   anonymousAddressId         — id of the anonymous user's saved address | null
+ *   selectAddress(addr)        — manually set selected address
  *   createAndSelectAddress(formData) — create via API then select locally
- *   refreshAddresses()     — re-fetch from API (authenticated only)
+ *   refreshAddresses(coords?)  — re-fetch from API (authenticated only); auto-selects closest when coords provided
+ *   autoSelectClosestAddress(coords) — pick closest saved address from coords
  */
 
 import React, {
@@ -37,60 +43,81 @@ import { AddressAPI } from '../api/addressApi';
 
 const AddressContext = createContext(null);
 
+// ─── Haversine distance (metres) ──────────────────────────────────────────────
+function _haversineM(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const toRad = d => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 export function AddressProvider({ children }) {
   const { isAuthenticated, getAccessToken } = useAuth();
 
   const [selectedAddress, setSelectedAddress] = useState(null);
   const [addresses,       setAddresses]       = useState([]);
   const [isLoading,       setIsLoading]       = useState(false);
+  // id of the anonymous user's server-side address (used for prefill on revisit)
+  const [anonymousAddressId, setAnonymousAddressId] = useState(null);
 
   // In-memory store for the anonymous user's last created address.
-  // Cleared when the user logs in (backend merges it via place-order).
   const anonymousAddressRef = useRef(null);
 
+  // ── Auto-select closest address given coords ──────────────────────────────
+  const autoSelectClosestAddress = useCallback((coords, list) => {
+    const pool = list ?? [];
+    if (!coords || pool.length === 0) return;
+    const { latitude, longitude } = coords;
+    let closest = pool[0];
+    let minDist = Infinity;
+    for (const addr of pool) {
+      if (addr.lat == null || addr.lng == null) continue;
+      const d = _haversineM(latitude, longitude, addr.lat, addr.lng);
+      if (d < minDist) { minDist = d; closest = addr; }
+    }
+    setSelectedAddress(closest);
+  }, []);
+
   // ── Fetch saved addresses for the authenticated user ─────────────────────
-  const refreshAddresses = useCallback(async () => {
+  const refreshAddresses = useCallback(async (coords) => {
     if (!isAuthenticated) return;
     setIsLoading(true);
     try {
       const at   = await getAccessToken();
       const list = await AddressAPI.getUserAddresses({ accessToken: at });
       setAddresses(list);
-      // Auto-select the default address, or the first one in the list
       if (list.length > 0) {
-        setSelectedAddress(prev => {
-          // If the currently selected address is already in the list, keep it
-          if (prev?.id && list.some(a => a.id === prev.id)) return prev;
-          return list.find(a => a.is_default) ?? list[0];
-        });
+        if (coords) {
+          autoSelectClosestAddress(coords, list);
+        } else {
+          setSelectedAddress(prev => {
+            if (prev?.id && list.some(a => a.id === prev.id)) return prev;
+            return list.find(a => a.is_default) ?? list[0];
+          });
+        }
       }
     } catch {
       // Non-critical — keep existing selection
     } finally {
       setIsLoading(false);
     }
-  }, [isAuthenticated, getAccessToken]);
+  }, [isAuthenticated, getAccessToken, autoSelectClosestAddress]);
 
   // ── React to auth state changes ───────────────────────────────────────────
   useEffect(() => {
     if (isAuthenticated) {
       refreshAddresses();
     } else {
-      // User logged out — clear saved list, restore any anonymous address
       setAddresses([]);
       setSelectedAddress(anonymousAddressRef.current ?? null);
     }
   }, [isAuthenticated]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Create an address and set it as selected ──────────────────────────────
-  /**
-   * formData shape:
-   *   { lat, lng, address_line_1, address_line_2?, landmark?,
-   *     city, state, pincode, label,
-   *     receiver_name, receiver_phone }
-   *
-   * Returns the local address object that was selected.
-   */
   const createAndSelectAddress = useCallback(async (formData) => {
     const at = isAuthenticated ? await getAccessToken() : undefined;
 
@@ -111,7 +138,6 @@ export function AddressProvider({ children }) {
 
     await AddressAPI.createAddress(payload, { accessToken: at });
 
-    // Build a local representation of the new address
     const parts = [
       formData.address_line_1,
       formData.address_line_2,
@@ -122,28 +148,41 @@ export function AddressProvider({ children }) {
     ].filter(Boolean);
 
     const localAddr = {
-      // id / address_id will be populated after refreshAddresses() for auth users
-      label:            formData.label,
-      is_default:       false,
-      receiver_name:    formData.receiver_name,
-      receiver_phone:   formData.receiver_phone,
-      lat:              formData.lat,
-      lng:              formData.lng,
-      address_line_1:   formData.address_line_1,
-      address_line_2:   formData.address_line_2 ?? '',
-      landmark:         formData.landmark       ?? '',
-      city:             formData.city,
-      state:            formData.state,
-      pincode:          formData.pincode,
+      label:             formData.label,
+      is_default:        false,
+      receiver_name:     formData.receiver_name,
+      receiver_phone:    formData.receiver_phone,
+      lat:               formData.lat,
+      lng:               formData.lng,
+      address_line_1:    formData.address_line_1,
+      address_line_2:    formData.address_line_2 ?? '',
+      landmark:          formData.landmark       ?? '',
+      city:              formData.city,
+      state:             formData.state,
+      pincode:           formData.pincode,
       formatted_address: parts.join(', '),
     };
 
     if (!isAuthenticated) {
-      // Store locally so it survives between screens
+      // Fetch the list to capture the server-assigned id for future prefills
+      try {
+        const list = await AddressAPI.getUserAddresses();
+        // Match by address_line_1 + city + pincode (most specific unique combo)
+        const match = list.find(
+          a => a.address_line_1 === formData.address_line_1 &&
+               a.city           === formData.city &&
+               a.pincode        === formData.pincode,
+        );
+        if (match) {
+          localAddr.id = match.id;
+          setAnonymousAddressId(match.id);
+        }
+      } catch {
+        // id fetch failure is non-fatal
+      }
       anonymousAddressRef.current = localAddr;
       setSelectedAddress(localAddr);
     } else {
-      // Fetch the list so the new address (with its server-assigned ID) appears
       await refreshAddresses();
     }
 
@@ -154,9 +193,11 @@ export function AddressProvider({ children }) {
     selectedAddress,
     addresses,
     isLoading,
-    selectAddress:          setSelectedAddress,
+    anonymousAddressId,
+    selectAddress:              setSelectedAddress,
     createAndSelectAddress,
     refreshAddresses,
+    autoSelectClosestAddress,
   };
 
   return (

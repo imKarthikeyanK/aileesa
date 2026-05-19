@@ -153,34 +153,34 @@ export const OrdersAPI = {
    * GET /orders
    * Returns the user's full order history, newest first.
    */
-  async getOrders() {
+  async getOrders({ accessToken } = {}) {
     if (USE_MOCK) {
       await new Promise(r => setTimeout(r, MOCK_DELAY));
       return [..._orders].sort(
         (a, b) => new Date(b.created_at) - new Date(a.created_at),
       );
     }
-    return _get('/orders');
+    return _get('/orders', { accessToken });
   },
 
   /**
    * GET /orders/:id
    */
-  async getOrder(id) {
+  async getOrder(id, { accessToken } = {}) {
     if (USE_MOCK) {
       await new Promise(r => setTimeout(r, 500));
       const order = _orders.find(o => o.id === id);
       if (!order) throw new Error(`Order ${id} not found`);
       return { ...order };
     }
-    return _get(`/orders/${id}`);
+    return _get(`/orders/${id}`, { accessToken });
   },
 
   /**
    * POST /orders/place-order
    * Places a new order and returns the created booking.
    */
-  async placeOrder({ store_id, store_name, business_id, items, sub_total, tax, delivery_fee, platform_fee, grand_total, payment_method, delivery_info, delivery_time }) {
+  async placeOrder({ store_id, store_name, business_id, items, sub_total, tax, delivery_fee, platform_fee, grand_total, payment_method, delivery_info, delivery_time, accessToken } = {}) {
     if (USE_MOCK) {
       await new Promise(r => setTimeout(r, 1400));
 
@@ -214,6 +214,6 @@ export const OrdersAPI = {
       store_id, store_name, business_id, items, sub_total, tax,
       delivery_fee, platform_fee, grand_total, payment_method,
       delivery_info, delivery_time,
-    });
+    }, { accessToken });
   },
 };
