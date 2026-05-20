@@ -31,9 +31,15 @@ const WHITE     = '#FFFFFF';
 
 // ─── Status config ─────────────────────────────────────────────────────────────
 const STATUS_CONFIG = {
-  delivered:  { label: 'Delivered',  bg: '#D1FAE5', color: SUCCESS,   icon: 'checkmark-circle' },
-  processing: { label: 'Processing', bg: '#EDE9FE', color: '#7C3AED', icon: 'time' },
-  cancelled:  { label: 'Cancelled',  bg: '#FEE2E2', color: ACCENT,    icon: 'close-circle' },
+  // Real API status values
+  payment_initiated: { label: 'Processing',  bg: '#EDE9FE', color: '#7C3AED', icon: 'time' },
+  booked:            { label: 'Processing',  bg: '#EDE9FE', color: '#7C3AED', icon: 'time' },
+  completed:         { label: 'Delivered',   bg: '#D1FAE5', color: SUCCESS,   icon: 'checkmark-circle' },
+  refunded:          { label: 'Refunded',    bg: '#FEF3C7', color: AMBER,     icon: 'refresh-circle' },
+  cancelled:         { label: 'Cancelled',   bg: '#FEE2E2', color: ACCENT,    icon: 'close-circle' },
+  // Fallback aliases
+  delivered:         { label: 'Delivered',   bg: '#D1FAE5', color: SUCCESS,   icon: 'checkmark-circle' },
+  processing:        { label: 'Processing',  bg: '#EDE9FE', color: '#7C3AED', icon: 'time' },
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -224,7 +230,7 @@ export default function BookingDetailScreen({ route, navigation }) {
     );
   }
 
-  const cfg = STATUS_CONFIG[order.status] ?? STATUS_CONFIG.processing;
+  const cfg = STATUS_CONFIG[order.status] ?? STATUS_CONFIG.booked;
 
   // ── Render: main detail ────────────────────────────────────────────────────
   return (
@@ -261,17 +267,17 @@ export default function BookingDetailScreen({ route, navigation }) {
           <Ionicons name={cfg.icon} size={22} color={cfg.color} />
           <View style={{ flex: 1 }}>
             <Text style={[styles.statusBannerTitle, { color: cfg.color }]}>{cfg.label}</Text>
-            {order.status === 'delivered' && order.delivered_at && (
+            {(order.status === 'completed' || order.status === 'delivered') && order.delivered_at && (
               <Text style={[styles.statusBannerSub, { color: cfg.color }]}>
                 Delivered on {formatDateTime(order.delivered_at)}
               </Text>
             )}
-            {order.status === 'processing' && (
+            {(order.status === 'booked' || order.status === 'payment_initiated' || order.status === 'processing') && (
               <Text style={[styles.statusBannerSub, { color: cfg.color }]}>
                 Placed on {formatDateTime(order.created_at)}
               </Text>
             )}
-            {order.status === 'cancelled' && (
+            {(order.status === 'cancelled' || order.status === 'refunded') && (
               <Text style={[styles.statusBannerSub, { color: cfg.color }]}>
                 Order was cancelled · Refund in 3–5 business days
               </Text>
@@ -310,7 +316,9 @@ export default function BookingDetailScreen({ route, navigation }) {
           <InfoRow label="Method" value={order.payment_method} />
           <InfoRow
             label="Status"
-            value={order.payment_status.charAt(0).toUpperCase() + order.payment_status.slice(1)}
+            value={order.payment_status
+              ? order.payment_status.charAt(0).toUpperCase() + order.payment_status.slice(1)
+              : '—'}
             accent={order.payment_status === 'refunded'}
           />
           <InfoRow label="Booking ID" value={order.booking_id ?? order.id} />

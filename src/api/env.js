@@ -44,7 +44,7 @@ const ENVIRONMENTS = {
   sbox: {
     name:       'sbox',
     label:      'Sandbox',
-    apiBaseUrl: 'https://db50-2406-7400-11d-780a-94e3-e4a0-9939-9b7.ngrok-free.app',
+    apiBaseUrl: 'https://api-sbox.oneszero.com',
     debugUI:    false,
     mockAuth:   false,
   },
@@ -52,7 +52,7 @@ const ENVIRONMENTS = {
   prod: {
     name:       'prod',
     label:      'Production',
-    apiBaseUrl: 'https://api.aileesa.com',
+    apiBaseUrl: 'https://api.oneszero.com',
     debugUI:    false,
     mockAuth:   false,
   },
@@ -66,7 +66,7 @@ const ENVIRONMENTS = {
 //
 // Valid values: 'dev' | 'sbox' | 'prod'
 
-const ACTIVE_ENV = 'dev'; // ← change this for local overrides
+const ACTIVE_ENV = 'prod'; // ← change this for local overrides
 
 const _envKey = process.env.EXPO_PUBLIC_APP_ENV ?? ACTIVE_ENV;
 
