@@ -30,11 +30,10 @@ function _preview(value, maxLen = 500) {
   }
 }
 
-/** Strip Authorization / x-oz-token from header log to avoid token leaks. */
+/** Strip Authorization from header log to avoid token leaks. */
 function _safeHeaders(headers) {
   const safe = { ...headers };
   if (safe['Authorization']) safe['Authorization'] = 'Bearer [redacted]';
-  if (safe['x-oz-token'])    safe['x-oz-token']    = '[redacted]';
   return safe;
 }
 
