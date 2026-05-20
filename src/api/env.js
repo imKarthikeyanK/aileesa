@@ -66,7 +66,7 @@ const ENVIRONMENTS = {
 //
 // Valid values: 'dev' | 'sbox' | 'prod'
 
-const ACTIVE_ENV = 'prod'; // ← change this for local overrides
+const ACTIVE_ENV = 'dev'; // ← change this for local overrides
 
 const _envKey = process.env.EXPO_PUBLIC_APP_ENV ?? ACTIVE_ENV;
 
