@@ -31,7 +31,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocation } from '../context/LocationContext';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTabBar } from '../context/TabBarContext';
-import { saveAddress } from '../api/addressApi';
+import { useAddress } from '../context/AddressContext';
+import { useAuth } from '../context/AuthContext';
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 
@@ -82,6 +83,8 @@ export default function LocationPickerScreen({ navigation }) {
 
   // ── Hide bottom tab bar while on this screen ──────────────────────────────
   const { hideTabBar, showTabBar } = useTabBar();
+  const { isAuthenticated, getAccessToken } = useAuth();
+  const { createAndSelectAddress } = useAddress();
   useFocusEffect(useCallback(() => {
     hideTabBar();
     return () => showTabBar();
@@ -200,21 +203,22 @@ export default function LocationPickerScreen({ navigation }) {
     setSaving(true);
     setSaveErr('');
     try {
-      const typeName = addressType === 'other'
+      const label = addressType === 'other'
         ? customName.trim()
         : ADDRESS_TYPES.find(t => t.id === addressType)?.label ?? 'Home';
 
-      await saveAddress({
-        latitude:    coords.latitude,
-        longitude:   coords.longitude,
-        fullAddress: detectedAddress,
-        houseNo:     houseNo.trim(),
-        landmark:    landmark.trim(),
-        city:        city.trim(),
-        state:       stateVal.trim(),
-        pincode:     pincode.trim(),
-        type:        addressType,
-        name:        typeName,
+      await createAndSelectAddress({
+        lat:            coords.latitude,
+        lng:            coords.longitude,
+        address_line_1: houseNo.trim(),
+        address_line_2: '',
+        landmark:       landmark.trim(),
+        city:           city.trim(),
+        state:          stateVal.trim(),
+        pincode:        pincode.trim(),
+        label,
+        receiver_name:  '',
+        receiver_phone: '',
       });
       setSaved(true);
       setTimeout(() => navigation.goBack(), 800);
