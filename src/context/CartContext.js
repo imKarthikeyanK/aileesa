@@ -23,6 +23,7 @@ import React, {
   useReducer,
 } from 'react';
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const STORAGE_KEY = 'aileesa_cart';
 
@@ -125,6 +126,12 @@ function cartReducer(state, action) {
     case 'CLEAR_CART':
       return initialState;
 
+    case 'HYDRATE':
+      // Native only: populate cart from AsyncStorage on first mount.
+      // Skip if already hydrated from web localStorage (items.length > 0).
+      if (state.items.length > 0) return state;
+      return { ...state, items: action.items };
+
     default:
       return state;
   }
@@ -133,9 +140,26 @@ function cartReducer(state, action) {
 export function CartProvider({ children }) {
   const [state, dispatch] = useReducer(cartReducer, undefined, getInitialState);
 
-  // Persist items to localStorage on web whenever they change
+  // Native: hydrate cart from AsyncStorage once on mount
   useEffect(() => {
-    saveToStorage(state.items);
+    if (Platform.OS === 'web') return;
+    AsyncStorage.getItem(STORAGE_KEY)
+      .then(raw => {
+        if (!raw) return;
+        try {
+          const items = JSON.parse(raw);
+          if (Array.isArray(items)) dispatch({ type: 'HYDRATE', items });
+        } catch {}
+      })
+      .catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Persist items whenever they change (web → localStorage, native → AsyncStorage)
+  useEffect(() => {
+    saveToStorage(state.items); // web only (no-op on native)
+    if (Platform.OS !== 'web') {
+      AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state.items)).catch(() => {});
+    }
   }, [state.items]);
 
   const addItem = useCallback(item => {

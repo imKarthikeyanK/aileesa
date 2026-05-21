@@ -37,15 +37,15 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthAPI } from '../api/authApi';
 import { setAuthState } from '../api/requestHeaders';
 
-// ─── In-memory token storage (swap this object to persist sessions) ───────────
-const _mem = {};
+// ─── Persistent token storage (AsyncStorage — localStorage on web, encrypted on native) ─────────
 const TokenStorage = {
-  get: async (key) => _mem[key] ?? null,
-  set: async (key, val) => { _mem[key] = val; },
-  del: async (key) => { delete _mem[key]; },
+  get: (key) => AsyncStorage.getItem(key),
+  set: (key, val) => AsyncStorage.setItem(key, val),
+  del: (key) => AsyncStorage.removeItem(key),
 };
 
 const KEYS = {

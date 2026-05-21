@@ -280,34 +280,13 @@ export default function StoreDetailScreen({ route, navigation }) {
   const scrollRef  = useRef(null);
   const sectionOffsets = useRef({});
 
-  // ── Hide bottom tab bar while on this screen ──────────────────────────────
-  const { hideTabBar } = useTabBar();
-  useFocusEffect(useCallback(() => {
-    hideTabBar();
-    // No cleanup showTabBar() — StoreListingScreen restores it on re-focus.
-
-    // Refresh store detail on every visit
-    getStoreDetail(routeStore.id)
-      .then(res => {
-        const raw    = res.data ?? res;
-        const detail = raw.data && typeof raw.data === 'object' && !Array.isArray(raw.data)
-          ? raw.data
-          : raw;
-        setStoreDetail(detail);
-      })
-      .catch(() => {});
-
-    // Reset and reload inventory from page 1 on every visit (e.g. returning from Cart)
-    invPageRef.current    = 1;
-    invHasNextRef.current = false;
-    isLoadingInvRef.current = false;
-    setSections([]);
-    fetchInventory(1);
-  }, [hideTabBar, routeStore.id, fetchInventory]));
-
   const [activeSection, setActiveSection] = useState(0);
   const [toastMsg, setToastMsg] = useState('');
   const showToast = useCallback(msg => setToastMsg(msg), []);
+
+  // ── Carousel ───────────────────────────────────────────────────────────────
+  const [carouselIndex, setCarouselIndex] = useState(0);
+  const carouselRef = useRef(null);
 
   // ── Store detail (enriched by API) ────────────────────────────────────────
   const [storeDetail, setStoreDetail] = useState(routeStore);
@@ -356,6 +335,33 @@ export default function StoreDetailScreen({ route, navigation }) {
     }
   }, [routeStore.id]);
 
+  // ── Hide bottom tab bar while on this screen ──────────────────────────────
+  const { hideTabBar } = useTabBar();
+  useFocusEffect(useCallback(() => {
+    hideTabBar();
+    // No cleanup showTabBar() — StoreListingScreen restores it on re-focus.
+
+    // Refresh store detail on every visit
+    getStoreDetail(routeStore.id)
+      .then(res => {
+        const raw    = res.data ?? res;
+        const detail = raw.data && typeof raw.data === 'object' && !Array.isArray(raw.data)
+          ? raw.data
+          : raw;
+        setStoreDetail(detail);
+      })
+      .catch(() => {});
+
+    // Reset and reload inventory from page 1 on every visit (e.g. returning from Cart)
+    invPageRef.current    = 1;
+    invHasNextRef.current = false;
+    isLoadingInvRef.current = false;
+    setSections([]);
+    setCarouselIndex(0);
+    carouselRef.current?.scrollToOffset({ offset: 0, animated: false });
+    fetchInventory(1);
+  }, [hideTabBar, routeStore.id, fetchInventory]));
+
   // Scroll listener drives pagination
   const handleScrollListener = useCallback((event) => {
     const { contentOffset, layoutMeasurement, contentSize } = event.nativeEvent;
@@ -367,26 +373,46 @@ export default function StoreDetailScreen({ route, navigation }) {
   }, [fetchInventory]);
 
   // ── Normalise camel/snake variants from routeStore (L1) vs API detail ─────
-  // cover_media: API returns [{ url: "...", type: "image" }] — extract .url from objects.
+  // cover_media: API returns [{ url: "...", type: "image" }] — extract all .url values for carousel.
   // Fallback chain: cover_media → cover_url → banner_url → image_url
-  const _extractUrl = v => {
-    if (!v) return null;
-    if (typeof v === 'string') return v || null;
+  const _extractAllUrls = v => {
+    if (!v) return [];
+    if (typeof v === 'string' && v) return [v];
     if (Array.isArray(v)) {
-      for (const item of v) {
-        if (typeof item === 'string' && item) return item;
-        if (item && typeof item === 'object' && typeof item.url === 'string' && item.url) return item.url;
-      }
-      return null;
+      return v.flatMap(item => {
+        if (typeof item === 'string' && item) return [item];
+        if (item && typeof item === 'object' && typeof item.url === 'string' && item.url) return [item.url];
+        return [];
+      });
     }
-    if (typeof v === 'object' && typeof v.url === 'string' && v.url) return v.url;
-    return null;
+    if (typeof v === 'object' && typeof v.url === 'string' && v.url) return [v.url];
+    return [];
   };
-  const coverMedia = _extractUrl(storeDetail.cover_media)
-    ?? _extractUrl(storeDetail.cover_url)
-    ?? _extractUrl(storeDetail.banner_url)
-    ?? _extractUrl(storeDetail.image_url)
-    ?? null;
+  const _extractUrl = v => _extractAllUrls(v)[0] ?? null;
+
+  const coverUrls = (() => {
+    const urls = _extractAllUrls(storeDetail.cover_media);
+    if (urls.length > 0) return urls;
+    const single = _extractUrl(storeDetail.cover_url)
+      ?? _extractUrl(storeDetail.banner_url)
+      ?? _extractUrl(storeDetail.image_url);
+    return single ? [single] : [];
+  })();
+
+  // Auto-scroll carousel right-to-left every second; restarts if image count changes
+  useEffect(() => {
+    setCarouselIndex(0);
+    carouselRef.current?.scrollToOffset({ offset: 0, animated: false });
+    if (coverUrls.length <= 1) return;
+    const id = setInterval(() => {
+      setCarouselIndex(prev => {
+        const next = (prev + 1) % coverUrls.length;
+        carouselRef.current?.scrollToOffset({ offset: next * SW, animated: true });
+        return next;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [coverUrls.length]); // eslint-disable-line react-hooks/exhaustive-deps
   // Use || (not ??) so empty strings '' fall through to the defaults
   const coverBg      = storeDetail.cover_bg     || storeDetail.coverBg    || '#F0F1F8';
   const iconColor    = storeDetail.icon_color   || storeDetail.iconColor   || '#6200EE';
@@ -506,12 +532,24 @@ export default function StoreDetailScreen({ route, navigation }) {
             },
           ]}
         >
-          {/* Real cover image — fills the hero when the API provides one */}
-          {coverMedia && (
-            <Image source={{ uri: coverMedia }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+          {/* Cover image carousel — scrolls right-to-left every second */}
+          {coverUrls.length > 0 && (
+            <FlatList
+              ref={carouselRef}
+              data={coverUrls}
+              keyExtractor={(_, i) => String(i)}
+              horizontal
+              pagingEnabled
+              scrollEnabled={coverUrls.length > 1}
+              showsHorizontalScrollIndicator={false}
+              style={StyleSheet.absoluteFill}
+              renderItem={({ item: url }) => (
+                <Image source={{ uri: url }} style={{ width: SW, height: HERO_H }} resizeMode="cover" />
+              )}
+            />
           )}
-          {/* Decorative fallback — hidden when a real cover image is available */}
-          {!coverMedia && (
+          {/* Decorative fallback — hidden when real cover images are available */}
+          {coverUrls.length === 0 && (
             <>
               <Ionicons
                 name={storeDetail.icon}
