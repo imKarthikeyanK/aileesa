@@ -77,18 +77,44 @@ async function nominatimReverseGeocode(lat, lng) {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function LocationPickerScreen({ navigation }) {
+export default function LocationPickerScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
   const { coords: ctxCoords } = useLocation();
 
   // ── Hide bottom tab bar while on this screen ──────────────────────────────
   const { hideTabBar, showTabBar } = useTabBar();
   const { isAuthenticated, getAccessToken } = useAuth();
-  const { createAndSelectAddress } = useAddress();
+  const {
+    addresses,
+    isLoading: addressesLoading,
+    selectedAddress,
+    selectAddress,
+    createAndSelectAddress,
+  } = useAddress();
   useFocusEffect(useCallback(() => {
     hideTabBar();
     return () => showTabBar();
   }, [hideTabBar, showTabBar]));
+
+  // ── Mode: list (authenticated + saved addresses) vs form (create new) ─────
+  const forcedMode = route?.params?.mode;
+  const userChoseForm = useRef(false);
+  const [mode, setMode] = useState(() => {
+    if (forcedMode === 'form') return 'form';
+    if (forcedMode === 'list') return 'list';
+    return isAuthenticated && addresses.length > 0 ? 'list' : 'form';
+  });
+
+  // Switch to list once addresses load in after async bootstrap
+  useEffect(() => {
+    if (forcedMode || userChoseForm.current) return;
+    if (isAuthenticated && addresses.length > 0) setMode('list');
+  }, [isAuthenticated, addresses.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handlePickAddress = useCallback((addr) => {
+    selectAddress(addr);
+    navigation.goBack();
+  }, [selectAddress, navigation]);
 
   // ── GPS detection ─────────────────────────────────────────────────────────
   const [coords, setCoords] = useState(ctxCoords ?? DEFAULT_COORDS);
@@ -261,14 +287,98 @@ export default function LocationPickerScreen({ navigation }) {
         >
           <Ionicons name="arrow-back" size={22} color={TEXT_PRI} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Set delivery location</Text>
+        <Text style={styles.headerTitle}>
+          {mode === 'list' ? 'Choose delivery address' : 'Set delivery location'}
+        </Text>
         {/* spacer keeps title centred */}
         <View style={styles.backBtn} />
       </View>
 
       <View style={styles.flex}>
 
+        {/* ── List mode: saved addresses ─────────────────────────────────── */}
+        {mode === 'list' && (
+          <ScrollView
+            contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={styles.listDivider}>
+              <View style={styles.listDividerLine} />
+              <Text style={styles.listDividerText}>SAVED ADDRESSES</Text>
+              <View style={styles.listDividerLine} />
+            </View>
+
+            {addressesLoading ? (
+              <View style={styles.listLoader}>
+                <ActivityIndicator size="small" color={ACCENT} />
+              </View>
+            ) : addresses.length === 0 ? (
+              <View style={styles.listEmpty}>
+                <Ionicons name="location-outline" size={36} color={BORDER} />
+                <Text style={styles.listEmptyText}>No saved addresses yet</Text>
+              </View>
+            ) : (
+              addresses.map(addr => {
+                const isSel = addr.id === selectedAddress?.id;
+                const typeIcon = ADDRESS_TYPES.find(
+                  t => t.label.toLowerCase() === (addr.label ?? '').toLowerCase(),
+                )?.icon ?? 'location-outline';
+                const displayText = addr.formatted_address
+                  ?? [addr.address_line_1, addr.city, addr.state, addr.pincode].filter(Boolean).join(', ');
+
+                return (
+                  <TouchableOpacity
+                    key={addr.id}
+                    style={[styles.addrRow, isSel && styles.addrRowSel]}
+                    onPress={() => handlePickAddress(addr)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={[styles.addrTypeIcon, isSel && styles.addrTypeIconSel]}>
+                      <Ionicons name={typeIcon} size={18} color={isSel ? WHITE : ACCENT} />
+                    </View>
+                    <View style={styles.addrTextBlock}>
+                      <View style={styles.addrTitleRow}>
+                        <Text style={[styles.addrLabel, isSel && styles.addrLabelSel]}>
+                          {addr.label ?? 'Address'}
+                        </Text>
+                        {addr.is_default && (
+                          <View style={styles.defaultBadge}>
+                            <Text style={styles.defaultBadgeText}>Default</Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text style={styles.addrText} numberOfLines={2}>{displayText}</Text>
+                      {addr.receiver_name ? (
+                        <Text style={styles.addrReceiver} numberOfLines={1}>
+                          {addr.receiver_name} · {addr.receiver_phone}
+                        </Text>
+                      ) : null}
+                    </View>
+                    {isSel && (
+                      <Ionicons name="checkmark-circle" size={22} color={ACCENT} />
+                    )}
+                  </TouchableOpacity>
+                );
+              })
+            )}
+
+            <TouchableOpacity
+              style={styles.addNewBtn}
+              onPress={() => { userChoseForm.current = true; setMode('form'); }}
+              activeOpacity={0.8}
+            >
+              <View style={styles.addNewIcon}>
+                <Ionicons name="add" size={20} color={ACCENT} />
+              </View>
+              <Text style={styles.addNewText}>Add new address</Text>
+              <Ionicons name="chevron-forward" size={18} color={TEXT_MUTED} />
+            </TouchableOpacity>
+          </ScrollView>
+        )}
+
         {/* ── GPS detection card ─────────────────────────────────────────── */}
+        {mode === 'form' && (<>
         <View style={styles.gpsCard}>
           <View style={styles.gpsLeft}>
             {gpsStatus === 'detecting' || isGeocoding ? (
@@ -417,6 +527,7 @@ export default function LocationPickerScreen({ navigation }) {
             )}
           </TouchableOpacity>
         </ScrollView>
+        </>)}
       </View>
     </View>
   );
@@ -626,4 +737,72 @@ const styles = StyleSheet.create({
     color:         WHITE,
     letterSpacing: -0.2,
   },
+
+  // ── List mode ─────────────────────────────────────────────────────────────
+  listDivider: {
+    flexDirection:     'row',
+    alignItems:        'center',
+    gap:               10,
+    paddingHorizontal: 20,
+    paddingVertical:   14,
+  },
+  listDividerLine: { flex: 1, height: 1, backgroundColor: BORDER },
+  listDividerText: {
+    fontSize: 11, fontWeight: '700', color: TEXT_MUTED, letterSpacing: 0.8,
+  },
+  listLoader:    { paddingVertical: 40, alignItems: 'center' },
+  listEmpty:     { paddingVertical: 40, alignItems: 'center', gap: 8 },
+  listEmptyText: { fontSize: 14, color: TEXT_MUTED },
+
+  addrRow: {
+    flexDirection:     'row',
+    alignItems:        'center',
+    gap:               12,
+    paddingHorizontal: 20,
+    paddingVertical:   14,
+    backgroundColor:   WHITE,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: BORDER,
+  },
+  addrRowSel:     { backgroundColor: '#F3EEFF' },
+  addrTypeIcon: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: ACCENT_LIGHT,
+    alignItems: 'center', justifyContent: 'center',
+    flexShrink: 0,
+  },
+  addrTypeIconSel: { backgroundColor: ACCENT },
+  addrTextBlock:   { flex: 1 },
+  addrTitleRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap',
+  },
+  addrLabel:    { fontSize: 14, fontWeight: '700', color: TEXT_PRI },
+  addrLabelSel: { color: ACCENT },
+  addrText:     { fontSize: 12, color: TEXT_SEC, marginTop: 2, lineHeight: 17 },
+  addrReceiver: { fontSize: 11, color: TEXT_MUTED, marginTop: 2 },
+  defaultBadge: {
+    backgroundColor:   '#E8F5E9',
+    paddingHorizontal: 6,
+    paddingVertical:   2,
+    borderRadius:      6,
+  },
+  defaultBadgeText: { fontSize: 10, color: '#2E7D32', fontWeight: '700' },
+
+  addNewBtn: {
+    flexDirection:     'row',
+    alignItems:        'center',
+    gap:               12,
+    paddingHorizontal: 20,
+    paddingVertical:   16,
+    backgroundColor:   WHITE,
+    borderTopWidth:    StyleSheet.hairlineWidth,
+    borderTopColor:    BORDER,
+    marginTop:         8,
+  },
+  addNewIcon: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: ACCENT_LIGHT,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  addNewText: { flex: 1, fontSize: 14, fontWeight: '600', color: ACCENT },
 });
