@@ -2,7 +2,7 @@
   "expo": {
     "name": "Aileesa",
     "slug": "aileesa",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "scheme": "aileesa",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -16,7 +16,8 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.aileesa.app",
-      "buildNumber": "2",
+      "buildNumber": "3",
+      "associatedDomains": ["applinks:aileesa.com"],
       "config": {
         "googleMapsApiKey": "REPLACE_WITH_YOUR_IOS_GOOGLE_MAPS_API_KEY"
       }
@@ -28,7 +29,21 @@
         "backgroundColor": "#6200EE"
       },
       "package": "com.aileesa.app",
-      "versionCode": 2,
+      "versionCode": 3,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [{ "scheme": "aileesa" }],
+          "category": ["BROWSABLE", "DEFAULT"]
+        },
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [{ "scheme": "https", "host": "aileesa.com" }],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ],
       "config": {
         "googleMaps": {
           "apiKey": "REPLACE_WITH_YOUR_ANDROID_GOOGLE_MAPS_API_KEY"
