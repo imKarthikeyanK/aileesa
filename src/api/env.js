@@ -34,7 +34,7 @@ const ENVIRONMENTS = {
   dev: {
     name:       'dev',
     label:      'Development',
-    apiBaseUrl: 'https://db50-2406-7400-11d-780a-94e3-e4a0-9939-9b7.ngrok-free.app',
+    apiBaseUrl: 'https://eff8-2406-7400-11d-4bad-f8ca-4c6a-4f68-a375.ngrok-free.app',
     /** Show dev-only UI (mock OTP banner, env badge, etc.) */
     debugUI:    true,
     /** Default auth provider when ACTIVE_PROVIDER in authApi.js is not 'real' */
@@ -66,9 +66,8 @@ const ENVIRONMENTS = {
 //
 // Valid values: 'dev' | 'sbox' | 'prod'
 
-const ACTIVE_ENV = 'dev'; // ← change this for local overrides
-
-const _envKey = process.env.EXPO_PUBLIC_APP_ENV ?? ACTIVE_ENV;
+const FALLBACK_ENV = typeof __DEV__ !== 'undefined' && __DEV__ ? 'dev' : 'prod';
+const _envKey = process.env.EXPO_PUBLIC_APP_ENV ?? FALLBACK_ENV;
 
 if (!ENVIRONMENTS[_envKey]) {
   throw new Error(

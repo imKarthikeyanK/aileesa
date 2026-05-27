@@ -37,15 +37,30 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import { AuthAPI } from '../api/authApi';
 import { setAuthState } from '../api/requestHeaders';
 
-// ─── Persistent token storage (AsyncStorage — localStorage on web, encrypted on native) ─────────
+// ─── Persistent token storage ───────────────────────────────────────────────
+// Web keeps using browser storage; native uses encrypted SecureStore.
 const TokenStorage = {
-  get: (key) => AsyncStorage.getItem(key),
-  set: (key, val) => AsyncStorage.setItem(key, val),
-  del: (key) => AsyncStorage.removeItem(key),
+  get: (key) => (
+    Platform.OS === 'web'
+      ? AsyncStorage.getItem(key)
+      : SecureStore.getItemAsync(key)
+  ),
+  set: (key, val) => (
+    Platform.OS === 'web'
+      ? AsyncStorage.setItem(key, val)
+      : SecureStore.setItemAsync(key, val)
+  ),
+  del: (key) => (
+    Platform.OS === 'web'
+      ? AsyncStorage.removeItem(key)
+      : SecureStore.deleteItemAsync(key)
+  ),
 };
 
 const KEYS = {

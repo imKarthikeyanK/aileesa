@@ -318,7 +318,6 @@ export default function StoreDetailScreen({ route, navigation }) {
         latitude: queryLatitude,
         longitude: queryLongitude,
       });
-      console.log('[SDS] inventory raw response page', pageNum, ':', JSON.stringify(res, null, 2));
       // API wraps its own envelope: { status, data: { data: [...], pagination: {} } }
       // Support both the wrapped shape and a flat { data: [...], pagination: {} } shape.
       const envelope  = res.data && typeof res.data === 'object' && Array.isArray(res.data.data)
@@ -339,7 +338,6 @@ export default function StoreDetailScreen({ route, navigation }) {
       invPageRef.current    = pageNum;
       setInvHasNext(pagination.has_next ?? false);
     } catch (e) {
-      console.error('[fetchInventory] page', pageNum, e);
       showToast('Could not load products. Please try again.');
     } finally {
       isLoadingInvRef.current = false;

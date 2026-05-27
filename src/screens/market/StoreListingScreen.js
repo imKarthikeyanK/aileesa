@@ -448,8 +448,6 @@ export default function StoreListingScreen({ navigation }) {
         latitude: queryLatitude,
         longitude: queryLongitude,
       });
-      console.log('[SLP] getStores raw response:', JSON.stringify(res, null, 2));
-
       const data       = Array.isArray(res.data) ? res.data : [];
       const pagination = (res.pagination && typeof res.pagination === 'object') ? res.pagination : {};
 

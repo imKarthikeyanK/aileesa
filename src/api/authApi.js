@@ -130,7 +130,7 @@ const MockProvider = {
     // In production this triggers a real WhatsApp message via your backend.
     // In dev, log + expose the OTP so testers can enter it manually.
     if (__DEV__) {
-      console.log(`[AuthMock] OTP for +91 ${phone} → ${otp}`);
+      // Intentionally expose the OTP in dev through the returned payload.
     }
 
     return {

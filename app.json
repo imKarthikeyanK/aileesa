@@ -17,7 +17,9 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.aileesa.app",
       "buildNumber": "3",
-      "associatedDomains": ["applinks:aileesa.com"],
+      "associatedDomains": [
+        "applinks:aileesa.com"
+      ],
       "config": {
         "googleMapsApiKey": "REPLACE_WITH_YOUR_IOS_GOOGLE_MAPS_API_KEY"
       }
@@ -34,14 +36,29 @@
         {
           "action": "VIEW",
           "autoVerify": true,
-          "data": [{ "scheme": "aileesa" }],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "data": [
+            {
+              "scheme": "aileesa"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         },
         {
           "action": "VIEW",
           "autoVerify": true,
-          "data": [{ "scheme": "https", "host": "aileesa.com" }],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "data": [
+            {
+              "scheme": "https",
+              "host": "aileesa.com"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ],
       "config": {
@@ -76,7 +93,8 @@
           "locationAlwaysAndWhenInUsePermission": "Allow Aileesa to use your location to find stores near you.",
           "locationWhenInUsePermission": "Allow Aileesa to use your location to find stores near you."
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "extra": {
       "eas": {
