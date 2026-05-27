@@ -15,6 +15,11 @@ function _get(path) {
   return httpGet(`${BASE_URL}${path}`);
 }
 
+function _appendLocationParams(params, latitude, longitude) {
+  if (latitude != null) params.set('lat', String(latitude));
+  if (longitude != null) params.set('lng', String(longitude));
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 const SIMULATED_DELAY_MS = 700;
 const PER_PAGE = 5;
@@ -26,10 +31,10 @@ function delay() {
 /**
  * GET /stores?page=&category=
  *
- * @param {{ page?: number, category?: string | null }} options
+ * @param {{ page?: number, category?: string | null, latitude?: number | null, longitude?: number | null }} options
  * @returns {Promise<{ data: object[], pagination: object }>}
  */
-export async function getStores({ page = 1, category = null } = {}) {
+export async function getStores({ page = 1, category = null, latitude = null, longitude = null } = {}) {
   if (USE_MOCK) {
     await delay();
 
@@ -57,6 +62,7 @@ export async function getStores({ page = 1, category = null } = {}) {
 
   const params = new URLSearchParams({ page });
   if (category && category !== 'all') params.set('category', category);
+  _appendLocationParams(params, latitude, longitude);
   return _get(`/stores?${params.toString()}`);
 }
 
@@ -64,9 +70,10 @@ export async function getStores({ page = 1, category = null } = {}) {
  * GET /stores/:id
  *
  * @param {string} storeId
+ * @param {{ latitude?: number | null, longitude?: number | null }} [options]
  * @returns {Promise<{ data: object }>}
  */
-export async function getStoreDetail(storeId) {
+export async function getStoreDetail(storeId, { latitude = null, longitude = null } = {}) {
   if (USE_MOCK) {
     await delay();
 
@@ -78,5 +85,8 @@ export async function getStoreDetail(storeId) {
     return { data: store };
   }
 
-  return _get(`/stores/${storeId}`);
+  const params = new URLSearchParams();
+  _appendLocationParams(params, latitude, longitude);
+  const suffix = params.toString() ? `?${params.toString()}` : '';
+  return _get(`/stores/${storeId}${suffix}`);
 }

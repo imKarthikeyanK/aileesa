@@ -38,6 +38,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { getStoreDetail } from '../../api/storeApi';
 import { getInventories }  from '../../api/inventoryApi';
 import { useCart }          from '../../context/CartContext';
+import { useLocation }      from '../../context/LocationContext';
+import { useAddress }       from '../../context/AddressContext';
 import CartFloatingCard     from '../../components/CartFloatingCard';
 import Toast                from '../../components/Toast';
 import { useTabBar }        from '../../context/TabBarContext';
@@ -276,6 +278,10 @@ function SectionBlock({ section, storeId, storeName, businessId, storeClosed, on
 export default function StoreDetailScreen({ route, navigation }) {
   const { store: _store, storeId } = route.params ?? {};
   const routeStore = _store ?? { id: storeId, name: '' };
+  const { selectedAddress } = useAddress();
+  const { coords } = useLocation();
+  const queryLatitude = selectedAddress?.lat ?? coords?.latitude ?? null;
+  const queryLongitude = selectedAddress?.lng ?? coords?.longitude ?? null;
   const insets     = useSafeAreaInsets();
   const scrollY    = useRef(new Animated.Value(0)).current;
   const scrollRef  = useRef(null);
@@ -306,7 +312,12 @@ export default function StoreDetailScreen({ route, navigation }) {
     isLoadingInvRef.current = true;
     setInvLoading(true);
     try {
-      const res = await getInventories({ storeId: routeStore.id, page: pageNum });
+      const res = await getInventories({
+        storeId: routeStore.id,
+        page: pageNum,
+        latitude: queryLatitude,
+        longitude: queryLongitude,
+      });
       console.log('[SDS] inventory raw response page', pageNum, ':', JSON.stringify(res, null, 2));
       // API wraps its own envelope: { status, data: { data: [...], pagination: {} } }
       // Support both the wrapped shape and a flat { data: [...], pagination: {} } shape.
@@ -334,7 +345,7 @@ export default function StoreDetailScreen({ route, navigation }) {
       isLoadingInvRef.current = false;
       setInvLoading(false);
     }
-  }, [routeStore.id]);
+  }, [queryLatitude, queryLongitude, routeStore.id]);
 
   // ── Hide bottom tab bar while on this screen ──────────────────────────────
   const { hideTabBar } = useTabBar();
@@ -343,7 +354,10 @@ export default function StoreDetailScreen({ route, navigation }) {
     // No cleanup showTabBar() — StoreListingScreen restores it on re-focus.
 
     // Refresh store detail on every visit
-    getStoreDetail(routeStore.id)
+    getStoreDetail(routeStore.id, {
+      latitude: queryLatitude,
+      longitude: queryLongitude,
+    })
       .then(res => {
         const raw    = res.data ?? res;
         const detail = raw.data && typeof raw.data === 'object' && !Array.isArray(raw.data)
@@ -361,7 +375,7 @@ export default function StoreDetailScreen({ route, navigation }) {
     setCarouselIndex(0);
     carouselRef.current?.scrollToOffset({ offset: 0, animated: false });
     fetchInventory(1);
-  }, [hideTabBar, routeStore.id, fetchInventory]));
+  }, [hideTabBar, queryLatitude, queryLongitude, routeStore.id, fetchInventory]));
 
   // Scroll listener drives pagination
   const handleScrollListener = useCallback((event) => {

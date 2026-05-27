@@ -15,6 +15,11 @@ function _get(path) {
   return httpGet(`${BASE_URL}${path}`);
 }
 
+function _appendLocationParams(params, latitude, longitude) {
+  if (latitude != null) params.set('lat', String(latitude));
+  if (longitude != null) params.set('lng', String(longitude));
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 const SIMULATED_DELAY_MS = 600;
 const SECTIONS_PER_PAGE = 2;
@@ -26,10 +31,10 @@ function delay() {
 /**
  * GET /stores/:storeId/inventories?page=
  *
- * @param {{ storeId: string, page?: number }} options
+ * @param {{ storeId: string, page?: number, latitude?: number | null, longitude?: number | null }} options
  * @returns {Promise<{ data: object[], pagination: object }>}
  */
-export async function getInventories({ storeId, page = 1 } = {}) {
+export async function getInventories({ storeId, page = 1, latitude = null, longitude = null } = {}) {
   if (USE_MOCK) {
     await delay();
 
@@ -59,5 +64,7 @@ export async function getInventories({ storeId, page = 1 } = {}) {
     };
   }
 
-  return _get(`/stores/${storeId}/inventories?page=${page}`);
+  const params = new URLSearchParams({ page: String(page) });
+  _appendLocationParams(params, latitude, longitude);
+  return _get(`/stores/${storeId}/inventories?${params.toString()}`);
 }

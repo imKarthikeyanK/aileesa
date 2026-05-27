@@ -402,7 +402,9 @@ export default function StoreListingScreen({ navigation }) {
   const totalCartItems = items.reduce((s, i) => s + i.quantity, 0);
 
   // ── Location / serviceability ─────────────────────────────────────────────────
-  const { serviceability, status: locationStatus, permissionStatus, runServiceabilityCheck } = useLocation();
+  const { coords, serviceability, status: locationStatus, permissionStatus, runServiceabilityCheck } = useLocation();
+  const queryLatitude = selectedAddress?.lat ?? coords?.latitude ?? null;
+  const queryLongitude = selectedAddress?.lng ?? coords?.longitude ?? null;
 
   // Trigger serviceability check once when SLP mounts
   useEffect(() => {
@@ -440,7 +442,12 @@ export default function StoreListingScreen({ navigation }) {
     if (replace) setLoading(true);
 
     try {
-      const res = await getStores({ page: pageNum, category: categoryRef.current });
+      const res = await getStores({
+        page: pageNum,
+        category: categoryRef.current,
+        latitude: queryLatitude,
+        longitude: queryLongitude,
+      });
       console.log('[SLP] getStores raw response:', JSON.stringify(res, null, 2));
 
       const data       = Array.isArray(res.data) ? res.data : [];
@@ -463,7 +470,7 @@ export default function StoreListingScreen({ navigation }) {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []); // stable — reads from refs
+  }, [queryLatitude, queryLongitude]); // stable paging refs; location inputs trigger refetches
 
   // Initial load + category-change refetch
   useEffect(() => {
@@ -471,7 +478,7 @@ export default function StoreListingScreen({ navigation }) {
     pageRef.current     = 1;
     hasNextRef.current  = false;
     fetchStores(1, true);
-  }, [category]);
+  }, [category, queryLatitude, queryLongitude]);
 
   const handleEndReached = useCallback(() => {
     if (hasNextRef.current && !isLoadingRef.current) {
