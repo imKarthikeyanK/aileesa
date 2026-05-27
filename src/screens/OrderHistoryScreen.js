@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { OrdersAPI } from '../api/ordersApi';
 import { useAuth } from '../context/AuthContext';
+import AuthSheet from '../components/auth/AuthSheet';
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 const BG        = '#F5F6FA';
@@ -86,11 +87,12 @@ function OrderCard({ order, onPress }) {
 // ─── Screen ───────────────────────────────────────────────────────────────────
 export default function OrderHistoryScreen({ navigation }) {
   const insets = useSafeAreaInsets();
-  const { getAccessToken } = useAuth();
+  const { getAccessToken, isAuthenticated } = useAuth();
   const [orders,    setOrders]    = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error,     setError]     = useState(null);
+  const [authSheetVisible, setAuthSheetVisible] = useState(false);
 
   const load = useCallback(async (silent = false) => {
     try {
@@ -108,7 +110,7 @@ export default function OrderHistoryScreen({ navigation }) {
     }
   }, [getAccessToken]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (isAuthenticated) load(); }, [isAuthenticated, load]);
 
   const onRefresh = () => { setRefreshing(true); load(true); };
 
@@ -125,7 +127,15 @@ export default function OrderHistoryScreen({ navigation }) {
         <View style={{ width: 40 }} />
       </View>
 
-      {loading ? (
+      {!isAuthenticated ? (
+        <View style={styles.centered}>
+          <Ionicons name="lock-closed-outline" size={44} color={TEXT_MUTED} />
+          <Text style={styles.errorText}>Login to view your orders</Text>
+          <TouchableOpacity style={styles.retryBtn} onPress={() => setAuthSheetVisible(true)}>
+            <Text style={styles.retryBtnText}>Login</Text>
+          </TouchableOpacity>
+        </View>
+      ) : loading ? (
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={ACCENT} />
         </View>
@@ -180,11 +190,12 @@ export default function OrderHistoryScreen({ navigation }) {
           renderItem={({ item }) => (
             <OrderCard
               order={item}
-              onPress={() => navigation.navigate('BookingDetail', { bookingId: item.id })}
+              onPress={() => navigation.navigate('BookingDetail', { orderId: item.id })}
             />
           )}
         />
       )}
+      <AuthSheet visible={authSheetVisible} onClose={() => setAuthSheetVisible(false)} />
     </View>
   );
 }

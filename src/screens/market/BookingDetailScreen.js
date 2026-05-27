@@ -2,7 +2,7 @@
  * BookingDetailScreen.js — BHL2: single booking detail, payment info,
  * live tracking timeline, and utility actions (invoice, bill, support).
  *
- * Route params: { bookingId: string }
+ * Route params: { orderId: string } — UUID of the order
  */
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
+import AuthSheet from '../../components/auth/AuthSheet';
 import { Ionicons } from '@expo/vector-icons';
 import { OrdersAPI } from '../../api/ordersApi';
 
@@ -144,20 +145,21 @@ function ActionBtn({ icon, label, onPress, disabled }) {
 // ─── Screen ───────────────────────────────────────────────────────────────────
 export default function BookingDetailScreen({ route, navigation }) {
   const insets    = useSafeAreaInsets();
-  const { getAccessToken } = useAuth();
-  const { bookingId } = route.params ?? {};
+  const { getAccessToken, isAuthenticated } = useAuth();
+  const { orderId } = route.params ?? {};
 
   const [order,     setOrder]     = useState(null);
   const [loading,   setLoading]   = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error,     setError]     = useState(null);
+  const [authSheetVisible, setAuthSheetVisible] = useState(false);
 
   const load = useCallback(async (silent = false) => {
     try {
       if (!silent) setLoading(true);
       setError(null);
       const token = await getAccessToken();
-      const res  = await OrdersAPI.getOrder(bookingId, { accessToken: token });
+      const res  = await OrdersAPI.getOrder(orderId, { accessToken: token });
       // Real API returns { status, data: {...order} }; mock returns the order directly.
       setOrder(res?.data ?? res);
     } catch (e) {
@@ -166,9 +168,9 @@ export default function BookingDetailScreen({ route, navigation }) {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [bookingId, getAccessToken]);
+  }, [orderId, getAccessToken]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (isAuthenticated) load(); }, [isAuthenticated, load]);
 
   const onRefresh = () => { setRefreshing(true); load(true); };
 
@@ -188,6 +190,30 @@ export default function BookingDetailScreen({ route, navigation }) {
       await Share.share({ message });
     } catch (_) {}
   };
+
+  // ── Render: auth gate ───────────────────────────────────────────────────────
+  if (!isAuthenticated) {
+    return (
+      <View style={[styles.root, { paddingTop: insets.top }]}>
+        <StatusBar barStyle="dark-content" backgroundColor={BG} />
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+            <Ionicons name="arrow-back" size={20} color={TEXT_PRI} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Booking Details</Text>
+          <View style={{ width: 40 }} />
+        </View>
+        <View style={styles.centered}>
+          <Ionicons name="lock-closed-outline" size={44} color={TEXT_MUTED} />
+          <Text style={styles.errorText}>Login to view this booking</Text>
+          <TouchableOpacity style={styles.retryBtn} onPress={() => setAuthSheetVisible(true)}>
+            <Text style={styles.retryBtnText}>Login</Text>
+          </TouchableOpacity>
+        </View>
+        <AuthSheet visible={authSheetVisible} onClose={() => setAuthSheetVisible(false)} />
+      </View>
+    );
+  }
 
   // ── Render: loading / error states ─────────────────────────────────────────
   if (loading) {

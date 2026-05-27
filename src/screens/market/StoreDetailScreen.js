@@ -274,7 +274,8 @@ function SectionBlock({ section, storeId, storeName, businessId, storeClosed, on
 // ─── Screen ────────────────────────────────────────────────────────────────────
 
 export default function StoreDetailScreen({ route, navigation }) {
-  const { store: routeStore } = route.params;
+  const { store: _store, storeId } = route.params ?? {};
+  const routeStore = _store ?? { id: storeId, name: '' };
   const insets     = useSafeAreaInsets();
   const scrollY    = useRef(new Animated.Value(0)).current;
   const scrollRef  = useRef(null);

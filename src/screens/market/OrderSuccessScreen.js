@@ -82,7 +82,7 @@ export default function OrderSuccessScreen({ route, navigation }) {
   const [countdown, setCountdown] = useState(Math.round(AUTO_NAV_DELAY / 1000));
 
   const goToDetail = () => {
-    navigation.replace('BookingDetail', { bookingId });
+    navigation.replace('BookingDetail', { orderId: bookingId });
   };
 
   useEffect(() => {

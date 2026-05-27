@@ -6,6 +6,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 
 import { theme } from '../theme/theme';
+import { IS_DEV } from '../api/env';
 import { TabBarProvider, useTabBar, TAB_BAR_H } from '../context/TabBarContext';
 import StoreListingScreen from '../screens/market/StoreListingScreen';
 import StoreDetailScreen from '../screens/market/StoreDetailScreen';
@@ -130,6 +131,37 @@ function TabLabel({ label, focused }) {
   );
 }
 
+// ─── Linking ──────────────────────────────────────────────────────────────────
+
+const linking = {
+  prefixes: [
+    'https://aileesa.com',
+    'aileesa://',
+    ...(IS_DEV ? ['http://localhost:8081'] : []),
+  ],
+  config: {
+    screens: {
+      Market: {
+        screens: {
+          StoreListing:   'market',
+          StoreDetail:    'store/:storeId',
+          Cart:           'cart',
+          BookingDetail:  'market/orders/:orderId',
+          LocationPicker: 'location',
+        },
+      },
+      Explore: 'explore',
+      You: {
+        screens: {
+          YouHome:       'you',
+          OrderHistory:  'orders',
+          BookingDetail: 'orders/:orderId',
+        },
+      },
+    },
+  },
+};
+
 // ─── Root Navigation ────────────────────────────────────────────────────────────
 
 function TabNavigator() {
@@ -180,7 +212,7 @@ function TabNavigator() {
 export default function Navigation() {
   return (
     <TabBarProvider>
-      <NavigationContainer>
+      <NavigationContainer linking={linking}>
         <TabNavigator />
       </NavigationContainer>
     </TabBarProvider>
