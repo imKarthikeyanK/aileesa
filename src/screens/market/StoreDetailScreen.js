@@ -280,8 +280,8 @@ export default function StoreDetailScreen({ route, navigation }) {
   const routeStore = _store ?? { id: storeId, name: '' };
   const { selectedAddress } = useAddress();
   const { coords } = useLocation();
-  const queryLatitude = selectedAddress?.lat ?? coords?.latitude ?? null;
-  const queryLongitude = selectedAddress?.lng ?? coords?.longitude ?? null;
+  const queryLatitude = selectedAddress?.lat ?? selectedAddress?.latitude ?? coords?.latitude ?? null;
+  const queryLongitude = selectedAddress?.lng ?? selectedAddress?.longitude ?? coords?.longitude ?? null;
   const insets     = useSafeAreaInsets();
   const scrollY    = useRef(new Animated.Value(0)).current;
   const scrollRef  = useRef(null);

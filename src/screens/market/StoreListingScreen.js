@@ -403,8 +403,8 @@ export default function StoreListingScreen({ navigation }) {
 
   // ── Location / serviceability ─────────────────────────────────────────────────
   const { coords, serviceability, status: locationStatus, permissionStatus, runServiceabilityCheck } = useLocation();
-  const queryLatitude = selectedAddress?.lat ?? coords?.latitude ?? null;
-  const queryLongitude = selectedAddress?.lng ?? coords?.longitude ?? null;
+  const queryLatitude = selectedAddress?.lat ?? selectedAddress?.latitude ?? coords?.latitude ?? null;
+  const queryLongitude = selectedAddress?.lng ?? selectedAddress?.longitude ?? coords?.longitude ?? null;
 
   // Trigger serviceability check once when SLP mounts
   useEffect(() => {

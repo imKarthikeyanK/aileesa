@@ -20,6 +20,12 @@ function _post(path, body) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 const DELAY_MS = 1400;
+const NON_SERVICEABLE_FALLBACK = {
+  serviceable: false,
+  city: null,
+  zone: null,
+  message: "We're not in your city yet. Coming soon!",
+};
 
 // ─── Serviceable Metro Zones ───────────────────────────────────────────────────
 // Each zone defines an approximate bounding box [min, max].
@@ -90,5 +96,22 @@ export async function checkServiceability({ latitude, longitude }) {
     };
   }
 
-  return _post('/serviceability', { lat: latitude, lng: longitude });
+  try {
+    const res = await _post('/serviceability', { lat: latitude, lng: longitude });
+    const payload = res?.data && typeof res.data === 'object' ? res.data : res;
+
+    // Fail closed: any non-success/invalid shape is treated as non-serviceable.
+    if ((res?.status != null && res.status !== 200) || typeof payload?.serviceable !== 'boolean') {
+      return NON_SERVICEABLE_FALLBACK;
+    }
+
+    return {
+      serviceable: payload.serviceable,
+      city: payload?.city ?? null,
+      zone: payload?.zone ?? null,
+      message: payload?.message ?? NON_SERVICEABLE_FALLBACK.message,
+    };
+  } catch {
+    return NON_SERVICEABLE_FALLBACK;
+  }
 }

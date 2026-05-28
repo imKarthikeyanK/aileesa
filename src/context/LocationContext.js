@@ -111,7 +111,17 @@ export function LocationProvider({ children }) {
       dispatch({ type: 'SET_SERVICEABILITY', payload: result });
       dispatch({ type: 'SET_STATUS', payload: 'done' });
     } catch {
-      dispatch({ type: 'SET_ERROR', payload: 'Could not verify service availability. Please try again.' });
+      // Safety net: if the API layer throws unexpectedly, treat as non-serviceable.
+      dispatch({
+        type: 'SET_SERVICEABILITY',
+        payload: {
+          serviceable: false,
+          city: null,
+          zone: null,
+          message: "We're not in your city yet. Coming soon!",
+        },
+      });
+      dispatch({ type: 'SET_STATUS', payload: 'done' });
     }
   }, []);
 

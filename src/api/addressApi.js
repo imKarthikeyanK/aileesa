@@ -28,6 +28,23 @@ function _patch(url, body, { accessToken } = {}) {
   return httpPatch(url, body, { accessToken });
 }
 
+function _toNumOrNull(v) {
+  if (v == null || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+function _normalizeAddress(addr) {
+  if (!addr || typeof addr !== 'object') return addr;
+  const lat = _toNumOrNull(addr.lat ?? addr.latitude);
+  const lng = _toNumOrNull(addr.lng ?? addr.longitude);
+  return {
+    ...addr,
+    lat,
+    lng,
+  };
+}
+
 // ─── API surface ──────────────────────────────────────────────────────────────
 
 export const AddressAPI = {
@@ -52,7 +69,8 @@ export const AddressAPI = {
    */
   async getUserAddresses({ accessToken } = {}) {
     const res = await _get(`${AILEESA_API_URL}/user-addresses`, { accessToken });
-    return res.data ?? [];
+    const rows = Array.isArray(res.data) ? res.data : [];
+    return rows.map(_normalizeAddress);
   },
 
   /**
@@ -63,7 +81,7 @@ export const AddressAPI = {
    */
   async getAddress(id, { accessToken } = {}) {
     const res = await _get(`${AILEESA_API_URL}/user-addresses/${id}`, { accessToken });
-    return res.data ?? null;
+    return _normalizeAddress(res.data ?? null);
   },
 
   /**
