@@ -71,6 +71,7 @@ const FEATURE_FILTER = false;
 const TITLE_BAR_H = 56;   // always visible
 const EXPAND_H    = 68;   // collapses on scroll
 const SEARCH_H    = 64;   // always visible, moves flush with title bar when collapsed
+const SLP_RELOAD_COOLDOWN_MS = 30_000; // skip re-fetch when returning from PLP / Cart within this window
 
 // ─── Category Filter Config ────────────────────────────────────────────────────
 
@@ -376,6 +377,12 @@ export default function StoreListingScreen({ navigation }) {
   const { showTabBar, hideTabBar } = useTabBar();
   const lastScrollY    = useRef(0);
   const isTabBarHidden = useRef(false);
+  // Cooldown tracking for store-list re-fetches triggered by navigation focus events.
+  // Keyed on category+coords so a real address/category change still fetches immediately.
+  const lastSlpFetchRef = useRef({ key: '', at: 0 });
+  // Tracks whether the previous render was focused; lets us distinguish a
+  // navigation-back focus event from an address/category change while focused.
+  const prevFocusedRef  = useRef(false);
 
   // Restore tab bar whenever SLP re-gains focus (back from SDS or Cart).
   useFocusEffect(useCallback(() => {
@@ -498,18 +505,35 @@ export default function StoreListingScreen({ navigation }) {
 
   const handleRefresh = useCallback(() => {
     setRefreshing(true);
+    lastSlpFetchRef.current = { key: '', at: 0 }; // bust cooldown so pull-to-refresh always fires
     pageRef.current    = 1;
     hasNextRef.current = false;
     fetchStores(1, true);
   }, [fetchStores]);
 
-  // If the chosen address changes, refresh the store list with the new coords.
+  // Trigger store-list fetch when focus or address/category changes.
+  // Cooldown is applied only when navigating back (isFocused: false → true with the
+  // same coords+category), so real address/category changes always fetch immediately.
   useEffect(() => {
-    if (!isFocused) return;
+    if (!isFocused) {
+      prevFocusedRef.current = false;
+      return;
+    }
     if (locationStatus !== 'done') return;
     if (permissionStatus !== 'granted') return;
-    if (!queryLatitude || !queryLongitude) return; // GPS unavailable — don't fire a pointless request
+    if (!queryLatitude || !queryLongitude) return;
+
     categoryRef.current = category;
+    const key = `${category}:${queryLatitude}:${queryLongitude}`;
+    const justRefocused = !prevFocusedRef.current; // isFocused went false → true
+    prevFocusedRef.current = true;
+
+    if (justRefocused) {
+      const { key: lastKey, at: lastAt } = lastSlpFetchRef.current;
+      if (lastKey === key && Date.now() - lastAt < SLP_RELOAD_COOLDOWN_MS) return;
+    }
+
+    lastSlpFetchRef.current = { key, at: Date.now() };
     pageRef.current     = 1;
     hasNextRef.current  = false;
     fetchStores(1, true);
@@ -568,6 +592,13 @@ export default function StoreListingScreen({ navigation }) {
 
   const renderListHeader = () => (
     <View>
+      {/* Pull-to-refresh in-list loader — shows while the native RefreshControl spins */}
+      {refreshing && (
+        <View style={styles.pullRefreshRow}>
+          <ActivityIndicator size="small" color={ACCENT} />
+          <Text style={styles.pullRefreshText}>Refreshing stores…</Text>
+        </View>
+      )}
       {/* Category filter chips — hidden via FEATURE_FILTER flag; all stores shown by default */}
       {FEATURE_FILTER && (
         <FlatList
@@ -1146,6 +1177,21 @@ const styles = StyleSheet.create({
   sectionCount: {
     fontSize: 13,
     color: TEXT_MUTED,
+    fontWeight: '500',
+  },
+
+  // Pull-to-refresh in-list indicator
+  pullRefreshRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+  },
+  pullRefreshText: {
+    fontSize: 13,
+    color: TEXT_SEC,
     fontWeight: '500',
   },
 

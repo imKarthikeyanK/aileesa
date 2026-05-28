@@ -279,10 +279,13 @@ const RealProvider = {
    * so verifyOtp can pass it back without any change to AuthContext.
    */
   async sendOtp(phone) {
-    const { data } = await this._post('/otp/trigger', { phone });
+    // Trigger the OTP — server may return a plain-text or empty body.
+    // We don't need response data: requestId is the phone itself, and
+    // expiresInSec falls back to the standard 5-minute window.
+    const res = await this._post('/otp/trigger', { phone });
     return {
       requestId:    phone,
-      expiresInSec: data.expires_in ?? 300,
+      expiresInSec: res?.data?.expires_in ?? res?.expires_in ?? 300,
     };
   },
 

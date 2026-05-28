@@ -283,6 +283,16 @@ export default function StoreDetailScreen({ route, navigation }) {
   const { coords } = useLocation();
   const queryLatitude = selectedAddress?.lat ?? selectedAddress?.latitude ?? coords?.latitude ?? null;
   const queryLongitude = selectedAddress?.lng ?? selectedAddress?.longitude ?? coords?.longitude ?? null;
+
+  // Refs so fetchInventory / useFocusEffect can read current coords without being
+  // re-created every time the coords object reference changes in context.
+  const queryLatRef = useRef(queryLatitude);
+  const queryLngRef = useRef(queryLongitude);
+  useEffect(() => {
+    queryLatRef.current = queryLatitude;
+    queryLngRef.current = queryLongitude;
+  }, [queryLatitude, queryLongitude]);
+
   const insets     = useSafeAreaInsets();
   const scrollY    = useRef(new Animated.Value(0)).current;
   const scrollRef  = useRef(null);
@@ -308,7 +318,6 @@ export default function StoreDetailScreen({ route, navigation }) {
   const invHasNextRef   = useRef(false);
   const isLoadingInvRef = useRef(false);
   const lastHydratedAtRef = useRef(0);
-  const lastHydratedKeyRef = useRef('');
 
   const fetchInventory = useCallback(async (pageNum) => {
     if (isLoadingInvRef.current) return;
@@ -318,8 +327,8 @@ export default function StoreDetailScreen({ route, navigation }) {
       const res = await getInventories({
         storeId: routeStore.id,
         page: pageNum,
-        latitude: queryLatitude,
-        longitude: queryLongitude,
+        latitude: queryLatRef.current,
+        longitude: queryLngRef.current,
       });
       // API wraps its own envelope: { status, data: { data: [...], pagination: {} } }
       // Support both the wrapped shape and a flat { data: [...], pagination: {} } shape.
@@ -346,7 +355,7 @@ export default function StoreDetailScreen({ route, navigation }) {
       isLoadingInvRef.current = false;
       setInvLoading(false);
     }
-  }, [queryLatitude, queryLongitude, routeStore.id]);
+  }, [routeStore.id]); // stable — reads coords from refs at call-time
 
   // ── Hide bottom tab bar while on this screen ──────────────────────────────
   const { hideTabBar } = useTabBar();
@@ -354,20 +363,18 @@ export default function StoreDetailScreen({ route, navigation }) {
     hideTabBar();
     // No cleanup showTabBar() — StoreListingScreen restores it on re-focus.
 
-    const key = `${routeStore.id}:${queryLatitude ?? 'na'}:${queryLongitude ?? 'na'}`;
-    const withinCooldown =
-      lastHydratedKeyRef.current === key &&
-      Date.now() - lastHydratedAtRef.current < PLP_RELOAD_COOLDOWN_MS;
-    if (withinCooldown) {
+    // Time-only cooldown: skip re-fetch if we loaded within the last 30 s.
+    // Coords are intentionally NOT part of the key — if the address changes
+    // while PLP is focused (rare), the ref will be current on the next call.
+    if (Date.now() - lastHydratedAtRef.current < PLP_RELOAD_COOLDOWN_MS) {
       return;
     }
-    lastHydratedKeyRef.current = key;
     lastHydratedAtRef.current = Date.now();
 
-    // Refresh store detail on every visit
+    // Refresh store detail — reads live coords from refs
     getStoreDetail(routeStore.id, {
-      latitude: queryLatitude,
-      longitude: queryLongitude,
+      latitude: queryLatRef.current,
+      longitude: queryLngRef.current,
     })
       .then(res => {
         const raw    = res.data ?? res;
@@ -378,7 +385,7 @@ export default function StoreDetailScreen({ route, navigation }) {
       })
       .catch(() => {});
 
-    // Reset and reload inventory from page 1 on every visit (e.g. returning from Cart)
+    // Reset and reload inventory from page 1
     invPageRef.current    = 1;
     invHasNextRef.current = false;
     isLoadingInvRef.current = false;
@@ -386,7 +393,7 @@ export default function StoreDetailScreen({ route, navigation }) {
     setCarouselIndex(0);
     carouselRef.current?.scrollToOffset({ offset: 0, animated: false });
     fetchInventory(1);
-  }, [hideTabBar, queryLatitude, queryLongitude, routeStore.id, fetchInventory]));
+  }, [hideTabBar, routeStore.id, fetchInventory])); // stable — no coord deps
 
   // Scroll listener drives pagination
   const handleScrollListener = useCallback((event) => {

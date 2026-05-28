@@ -29,8 +29,16 @@ async function _request(method, url, { body, accessToken, errorFactory } = {}) {
   let data;
   try {
     data = await res.json();
-  } catch (parseError) {
-    throw parseError;
+  } catch {
+    // Server returned a non-JSON body (e.g. plain-text "generated").
+    // For 2xx responses treat it as an empty success object so callers
+    // don't crash. For error responses we can't decode a structured error,
+    // so throw a generic one that includes the HTTP status.
+    if (res.ok) {
+      data = {};
+    } else {
+      throw new Error(`Request failed with status ${res.status}`);
+    }
   }
 
   if (!res.ok) {
