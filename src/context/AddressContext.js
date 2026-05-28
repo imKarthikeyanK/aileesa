@@ -58,7 +58,7 @@ function _haversineM(lat1, lng1, lat2, lng2) {
 
 export function AddressProvider({ children }) {
   const { isAuthenticated, getAccessToken } = useAuth();
-  const { refreshFlashCritical } = useLocation();
+  const { refreshFlashCritical, setActiveAddressCoords } = useLocation();
 
   const [selectedAddress, setSelectedAddress] = useState(null);
   const [addresses,       setAddresses]       = useState([]);
@@ -73,6 +73,18 @@ export function AddressProvider({ children }) {
     if (!addr || addr.lat == null || addr.lng == null) return null;
     return { latitude: addr.lat, longitude: addr.lng };
   }, []);
+
+  // Keep LocationContext's activeAddrCoordsRef in sync with the current selected address.
+  // This ensures every flash checkpoint (app foreground, manual retry, etc.) automatically
+  // uses the auth user's address coords without each call-site needing to pass them.
+  useEffect(() => {
+    if (isAuthenticated && selectedAddress?.lat != null && selectedAddress?.lng != null) {
+      setActiveAddressCoords({ latitude: selectedAddress.lat, longitude: selectedAddress.lng });
+    } else {
+      // Logged out or no valid address — clear so anonymous GPS flow takes over.
+      setActiveAddressCoords(null);
+    }
+  }, [isAuthenticated, selectedAddress, setActiveAddressCoords]);
 
   // ── Auto-select closest address given coords ──────────────────────────────
   const autoSelectClosestAddress = useCallback((coords, list) => {

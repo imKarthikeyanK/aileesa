@@ -26,7 +26,9 @@ const WHITE  = '#FFFFFF';
 
 const STATUS_COPY = {
   idle:       'Starting up…',
-  requesting: 'Getting your location…',
+  requesting: 'Requesting location access…',
+  locating:   'Getting your location…',
+  checking:   'Checking delivery availability…',
   done:       'All set! ✓',
 };
 
@@ -107,7 +109,7 @@ export default function SplashScreen({ onDone }) {
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
 
-  const isLoading = ['idle', 'requesting'].includes(status);
+  const isLoading = ['idle', 'requesting', 'locating', 'checking'].includes(status);
 
   // ── Render ──────────────────────────────────────────────────────────────────
 

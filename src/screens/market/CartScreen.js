@@ -333,8 +333,10 @@ export default function CartScreen({ navigation }) {
   const [authSheet, setAuthSheet]     = useState(false);
   const [addrSheet, setAddrSheet]     = useState(false);
   const [isCartGateLoading, setIsCartGateLoading] = useState(true);
+  const [showGpsFetchMessage, setShowGpsFetchMessage] = useState(false);
   const pendingOrder     = useRef(false); // true when user hit Place Order before login
   const pendingAddrSheet = useRef(false); // true when navigated to LocationPicker to add address
+  const gpsMsgTimerRef   = useRef(null);
   const cartFlashCoords = useMemo(() => {
     if (!isAuthenticated) return null;
     if (selectedAddress?.lat == null || selectedAddress?.lng == null) return null;
@@ -357,11 +359,23 @@ export default function CartScreen({ navigation }) {
 
     // Cart decisions must use fresh flash data, not cooldown-stale state.
     setIsCartGateLoading(true);
+    setShowGpsFetchMessage(false);
+    if (gpsMsgTimerRef.current) clearTimeout(gpsMsgTimerRef.current);
+    gpsMsgTimerRef.current = setTimeout(() => {
+      if (isActive) setShowGpsFetchMessage(true);
+    }, 2000);
     (async () => {
       try {
         await refreshFlashCritical({ reason: 'cart_open', coords: cartFlashCoords });
       } finally {
-        if (isActive) setIsCartGateLoading(false);
+        if (gpsMsgTimerRef.current) {
+          clearTimeout(gpsMsgTimerRef.current);
+          gpsMsgTimerRef.current = null;
+        }
+        if (isActive) {
+          setShowGpsFetchMessage(false);
+          setIsCartGateLoading(false);
+        }
       }
     })();
 
@@ -372,9 +386,13 @@ export default function CartScreen({ navigation }) {
     }
     return () => {
       isActive = false;
+      if (gpsMsgTimerRef.current) {
+        clearTimeout(gpsMsgTimerRef.current);
+        gpsMsgTimerRef.current = null;
+      }
       showTabBar();
     };
-  }, [hideTabBar, showTabBar, refreshFlashCritical, cartFlashCoords]);
+  }, [hideTabBar, showTabBar, refreshFlashCritical, cartFlashCoords]));
 
   // Re-hide the tab bar whenever the auth sheet is dismissed.
   // On web, showing a Modal can trigger a navigation blur/focus cycle which
@@ -495,8 +513,9 @@ export default function CartScreen({ navigation }) {
 
         <View style={styles.gateWrap}>
           <ActivityIndicator size="small" color={ACCENT} />
-          <Text style={styles.gateTitle}>Updating delivery availability...</Text>
-          <Text style={styles.gateSub}>Checking your current location and service zone</Text>
+          {showGpsFetchMessage ? (
+            <Text style={styles.gateTitle}>Fetching your location...</Text>
+          ) : null}
         </View>
       </View>
     );
@@ -524,9 +543,19 @@ export default function CartScreen({ navigation }) {
             style={styles.gateRetryBtn}
             onPress={async () => {
               setIsCartGateLoading(true);
+              setShowGpsFetchMessage(false);
+              if (gpsMsgTimerRef.current) clearTimeout(gpsMsgTimerRef.current);
+              gpsMsgTimerRef.current = setTimeout(() => {
+                setShowGpsFetchMessage(true);
+              }, 2000);
               try {
                 await refreshFlashCritical({ reason: 'cart_retry', coords: cartFlashCoords });
               } finally {
+                if (gpsMsgTimerRef.current) {
+                  clearTimeout(gpsMsgTimerRef.current);
+                  gpsMsgTimerRef.current = null;
+                }
+                setShowGpsFetchMessage(false);
                 setIsCartGateLoading(false);
               }
             }}

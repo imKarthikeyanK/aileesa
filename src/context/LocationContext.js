@@ -41,12 +41,22 @@ const INITIAL_STATE = {
 };
 
 const FLASH_THROTTLE_MS = 15000;
+const GPS_TIMEOUT_MS    = 5000;
+const GPS_CACHE_TTL_MS  = 24 * 60 * 60 * 1000; // 24 hours — reuse GPS fix for anonymous users
 
 const NON_SERVICEABLE_FALLBACK = {
   serviceable: false,
   city: null,
   zone: null,
   message: "We're not in your city yet. Coming soon!",
+};
+
+const LOCATION_UNAVAILABLE_FALLBACK = {
+  serviceable: false,
+  locationUnavailable: true,   // distinguishes GPS failure from area non-serviceable
+  city: null,
+  zone: null,
+  message: 'Unable to fetch your location. Please enable GPS and try again.',
 };
 
 /*
@@ -94,49 +104,75 @@ const LocationCtx = createContext(null);
 
 export function LocationProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
-  const appStateRef = useRef(AppState.currentState);
-  const coordsRef = useRef(null);
-  const coordsUpdatedAtRef = useRef(0);
-  const serviceabilityRef = useRef(null);
+  const appStateRef        = useRef(AppState.currentState);
+  const serviceabilityRef  = useRef(null);
   const refreshInFlightRef = useRef(false);
   const inFlightPromiseRef = useRef(null);
-  const lastFlashAtRef = useRef(0);
+  const lastFlashAtRef     = useRef(0);
+  // Persists the most recent GPS fix so repeated flash calls don't re-hit GPS
+  const gpsCacheRef        = useRef({ coords: null, fetchedAt: 0 });
+  // Registered by AddressContext — holds the auth user's selected address coords
+  // so every flash checkpoint (including app foreground) uses them automatically.
+  const activeAddrCoordsRef = useRef(null);
 
-  useEffect(() => {
-    coordsRef.current = state.coords;
-    if (state.coords) {
-      coordsUpdatedAtRef.current = Date.now();
-    }
-  }, [state.coords]);
+  // Called by AddressContext whenever selectedAddress changes.
+  // Clears to null when user logs out or has no valid address.
+  const setActiveAddressCoords = useCallback((coords) => {
+    activeAddrCoordsRef.current =
+      coords?.latitude != null && coords?.longitude != null ? coords : null;
+  }, []);
 
   useEffect(() => {
     serviceabilityRef.current = state.serviceability;
   }, [state.serviceability]);
 
-  const resolveCoords = useCallback(async ({ priority, coords }) => {
-    if (coords && typeof coords.latitude === 'number' && typeof coords.longitude === 'number') {
-      return coords;
-    }
+  const getCurrentPositionWithTimeout = useCallback(async () => {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error('GPS timeout'));
+      }, GPS_TIMEOUT_MS);
 
-    if (priority === 'critical' && coordsRef.current) {
-      const isFresh = Date.now() - coordsUpdatedAtRef.current <= FLASH_THROTTLE_MS;
-      if (isFresh) {
-        return coordsRef.current;
-      }
-    }
-
-    try {
-      const position = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-      return {
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-      };
-    } catch {
-      return coordsRef.current;
-    }
+      Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
+        .then((position) => {
+          clearTimeout(timer);
+          resolve(position);
+        })
+        .catch((err) => {
+          clearTimeout(timer);
+          reject(err);
+        });
+    });
   }, []);
+
+  const resolveCoords = useCallback(async ({ coords } = {}) => {
+    // Priority 1 — caller-supplied coords (explicit, e.g. cart flash passing cartFlashCoords)
+    if (coords?.latitude != null && coords?.longitude != null) {
+      return { latitude: coords.latitude, longitude: coords.longitude };
+    }
+
+    // Priority 2 — active address coords (auth user's selected delivery address)
+    // Registered by AddressContext; updated automatically whenever selectedAddress changes.
+    const addrCoords = activeAddrCoordsRef.current;
+    if (addrCoords?.latitude != null && addrCoords?.longitude != null) {
+      return { latitude: addrCoords.latitude, longitude: addrCoords.longitude };
+    }
+
+    // Priority 3 — cached GPS fix from a previous fetch (anonymous users, < 24 hr old)
+    const cache = gpsCacheRef.current;
+    if (cache.coords != null && (Date.now() - cache.fetchedAt) < GPS_CACHE_TTL_MS) {
+      return cache.coords;
+    }
+
+    // Priority 4 — acquire a fresh GPS fix and cache it
+    try {
+      const position = await getCurrentPositionWithTimeout();
+      const fresh = { latitude: position.coords.latitude, longitude: position.coords.longitude };
+      gpsCacheRef.current = { coords: fresh, fetchedAt: Date.now() };
+      return fresh;
+    } catch {
+      return null;
+    }
+  }, [getCurrentPositionWithTimeout]);
 
   // ── Central flash refresh helper (used by startup + checkpoints) ─────────
   // priority: 'normal' obeys cooldown, 'critical' bypasses cooldown.
@@ -156,36 +192,41 @@ export function LocationProvider({ children }) {
       dispatch({ type: 'SET_FLASH_REFRESHING', payload: true });
       dispatch({ type: 'SET_STATUS', payload: 'locating' });
 
-      let resolvedCoords;
       try {
-        resolvedCoords = await resolveCoords({ priority, coords });
-        if (!resolvedCoords) {
-          throw new Error('No location available');
+        // Step 1 — resolve coordinates (caller-supplied or fresh GPS)
+        let resolvedCoords;
+        try {
+          resolvedCoords = await resolveCoords({ coords });
+          if (!resolvedCoords) throw new Error('location_unavailable');
+          dispatch({ type: 'SET_COORDS', payload: resolvedCoords });
+        } catch {
+          dispatch({ type: 'SET_SERVICEABILITY', payload: LOCATION_UNAVAILABLE_FALLBACK });
+          dispatch({ type: 'SET_FLASH_META', payload: { reason, updatedAt: now } });
+          dispatch({ type: 'SET_STATUS', payload: 'done' });
+          lastFlashAtRef.current = now;
+          return LOCATION_UNAVAILABLE_FALLBACK;
         }
-        dispatch({ type: 'SET_COORDS', payload: resolvedCoords });
-      } catch {
-        dispatch({ type: 'SET_SERVICEABILITY', payload: NON_SERVICEABLE_FALLBACK });
-        dispatch({ type: 'SET_FLASH_META', payload: { reason, updatedAt: now } });
-        dispatch({ type: 'SET_STATUS', payload: 'done' });
-        return NON_SERVICEABLE_FALLBACK;
-      }
 
-      dispatch({ type: 'SET_STATUS', payload: 'checking' });
-      try {
-        const result = await checkServiceability(resolvedCoords);
-        dispatch({ type: 'SET_SERVICEABILITY', payload: result });
-        dispatch({ type: 'SET_FLASH_META', payload: { reason, updatedAt: now } });
-        dispatch({ type: 'SET_STATUS', payload: 'done' });
-        return result;
-      } catch {
-        dispatch({ type: 'SET_SERVICEABILITY', payload: NON_SERVICEABLE_FALLBACK });
-        dispatch({ type: 'SET_FLASH_META', payload: { reason, updatedAt: now } });
-        dispatch({ type: 'SET_STATUS', payload: 'done' });
-        return NON_SERVICEABLE_FALLBACK;
+        // Step 2 — call flash API
+        dispatch({ type: 'SET_STATUS', payload: 'checking' });
+        try {
+          const result = await checkServiceability(resolvedCoords);
+          dispatch({ type: 'SET_SERVICEABILITY', payload: result });
+          dispatch({ type: 'SET_FLASH_META', payload: { reason, updatedAt: now } });
+          dispatch({ type: 'SET_STATUS', payload: 'done' });
+          lastFlashAtRef.current = now;
+          return result;
+        } catch {
+          dispatch({ type: 'SET_SERVICEABILITY', payload: NON_SERVICEABLE_FALLBACK });
+          dispatch({ type: 'SET_FLASH_META', payload: { reason, updatedAt: now } });
+          dispatch({ type: 'SET_STATUS', payload: 'done' });
+          lastFlashAtRef.current = now;
+          return NON_SERVICEABLE_FALLBACK;
+        }
       } finally {
+        // Always runs — covers GPS failure, API failure, and success paths
         dispatch({ type: 'SET_FLASH_REFRESHING', payload: false });
         refreshInFlightRef.current = false;
-        lastFlashAtRef.current = now;
       }
     })();
 
@@ -253,6 +294,7 @@ export function LocationProvider({ children }) {
       runServiceabilityCheck,
       refreshFlash: runServiceabilityCheck,
       refreshFlashCritical,
+      setActiveAddressCoords,
     }}>
       {children}
     </LocationCtx.Provider>

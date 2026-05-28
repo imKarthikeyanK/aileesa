@@ -18,7 +18,7 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import {
   ActivityIndicator,
   Animated,
@@ -370,6 +370,7 @@ function StoreCard({ store, onPress }) {
 export default function StoreListingScreen({ navigation }) {
   const insets  = useSafeAreaInsets();
   const scrollY = useRef(new Animated.Value(0)).current;
+  const isFocused = useIsFocused();
 
   // ── Tab bar show/hide on scroll ───────────────────────────────────────────────
   const { showTabBar, hideTabBar } = useTabBar();
@@ -421,7 +422,8 @@ export default function StoreListingScreen({ navigation }) {
   const isCheckingServiceability = ['locating', 'checking'].includes(locationStatus);
   const serviceabilityDone       = locationStatus === 'done' && serviceability !== null;
   const showPermissionCard       = locationStatus === 'done' && !permissionGranted;
-  const showNonServiceableCard   = serviceabilityDone && serviceability?.serviceable === false;
+  const showLocationUnavailableCard = serviceabilityDone && serviceability?.locationUnavailable === true;
+  const showNonServiceableCard   = serviceabilityDone && serviceability?.serviceable === false && !serviceability?.locationUnavailable;
   const [toastMsg, setToastMsg] = useState('');
   const flashTimeLabel = flashUpdatedAt
     ? new Date(flashUpdatedAt).toLocaleTimeString('en-IN')
@@ -503,11 +505,15 @@ export default function StoreListingScreen({ navigation }) {
 
   // If the chosen address changes, refresh the store list with the new coords.
   useEffect(() => {
+    if (!isFocused) return;
+    if (locationStatus !== 'done') return;
+    if (permissionStatus !== 'granted') return;
+    if (!queryLatitude || !queryLongitude) return; // GPS unavailable — don't fire a pointless request
     categoryRef.current = category;
     pageRef.current     = 1;
     hasNextRef.current  = false;
     fetchStores(1, true);
-  }, [category, queryLatitude, queryLongitude, fetchStores]);
+  }, [isFocused, category, queryLatitude, queryLongitude, fetchStores, locationStatus, permissionStatus]);
 
   const TOTAL_HEADER_H = insets.top + TITLE_BAR_H + EXPAND_H + (FEATURE_SEARCH ? SEARCH_H : 0);
 
@@ -657,6 +663,18 @@ export default function StoreListingScreen({ navigation }) {
             subtitle="Grant location access so we can check if we deliver to your area and show you nearby stores."
             btnLabel="Grant Permission"
             onBtn={requestPermission}
+          />
+        </View>
+      ) : showLocationUnavailableCard ? (
+        <View style={[styles.locCardArea, { paddingTop: TOTAL_HEADER_H }]}>
+          <LocationCard
+            icon="navigate-circle-outline"
+            iconBg="#FFF7ED"
+            iconColor="#C2410C"
+            title="Couldn't fetch your location"
+            subtitle="Make sure GPS is enabled on your device and try again."
+            btnLabel={isFlashRefreshing ? 'Checking…' : 'Retry'}
+            onBtn={() => refreshFlashCritical({ reason: 'manual_retry' })}
           />
         </View>
       ) : showNonServiceableCard ? (

@@ -63,6 +63,7 @@ const SUCCESS      = '#10B981';
 
 const HERO_H      = 280;
 const CARD_OVERLAP = 32;
+const PLP_RELOAD_COOLDOWN_MS = 30000;
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -306,6 +307,8 @@ export default function StoreDetailScreen({ route, navigation }) {
   const invPageRef      = useRef(1);
   const invHasNextRef   = useRef(false);
   const isLoadingInvRef = useRef(false);
+  const lastHydratedAtRef = useRef(0);
+  const lastHydratedKeyRef = useRef('');
 
   const fetchInventory = useCallback(async (pageNum) => {
     if (isLoadingInvRef.current) return;
@@ -350,6 +353,16 @@ export default function StoreDetailScreen({ route, navigation }) {
   useFocusEffect(useCallback(() => {
     hideTabBar();
     // No cleanup showTabBar() — StoreListingScreen restores it on re-focus.
+
+    const key = `${routeStore.id}:${queryLatitude ?? 'na'}:${queryLongitude ?? 'na'}`;
+    const withinCooldown =
+      lastHydratedKeyRef.current === key &&
+      Date.now() - lastHydratedAtRef.current < PLP_RELOAD_COOLDOWN_MS;
+    if (withinCooldown) {
+      return;
+    }
+    lastHydratedKeyRef.current = key;
+    lastHydratedAtRef.current = Date.now();
 
     // Refresh store detail on every visit
     getStoreDetail(routeStore.id, {
