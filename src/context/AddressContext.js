@@ -39,6 +39,7 @@ import React, {
   useState,
 } from 'react';
 import { useAuth } from './AuthContext';
+import { useLocation } from './LocationContext';
 import { AddressAPI } from '../api/addressApi';
 
 const AddressContext = createContext(null);
@@ -57,6 +58,7 @@ function _haversineM(lat1, lng1, lat2, lng2) {
 
 export function AddressProvider({ children }) {
   const { isAuthenticated, getAccessToken } = useAuth();
+  const { refreshFlashCritical } = useLocation();
 
   const [selectedAddress, setSelectedAddress] = useState(null);
   const [addresses,       setAddresses]       = useState([]);
@@ -186,15 +188,24 @@ export function AddressProvider({ children }) {
       await refreshAddresses();
     }
 
+    // Checkpoint: location/address changed — refresh flash state.
+    refreshFlashCritical({ reason: 'address_change' });
+
     return localAddr;
-  }, [isAuthenticated, getAccessToken, refreshAddresses]);
+  }, [isAuthenticated, getAccessToken, refreshAddresses, refreshFlashCritical]);
+
+  const selectAddress = useCallback((addr) => {
+    setSelectedAddress(addr);
+    // Checkpoint: saved address switched by the user.
+    refreshFlashCritical({ reason: 'address_change' });
+  }, [refreshFlashCritical]);
 
   const value = {
     selectedAddress,
     addresses,
     isLoading,
     anonymousAddressId,
-    selectAddress:              setSelectedAddress,
+    selectAddress,
     createAndSelectAddress,
     refreshAddresses,
     autoSelectClosestAddress,

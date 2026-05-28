@@ -328,10 +328,11 @@ export default function CartScreen({ navigation }) {
   const { items, addItem, removeItem, clearCart } = useCart();
   const { isAuthenticated, getAccessToken } = useAuth();
   const { selectedAddress, isLoading: addrLoading, autoSelectClosestAddress } = useAddress();
-  const { coords } = useLocation();
+  const { coords, refreshFlashCritical, serviceability, permissionStatus } = useLocation();
   const [placing, setPlacing]         = useState(false);
   const [authSheet, setAuthSheet]     = useState(false);
   const [addrSheet, setAddrSheet]     = useState(false);
+  const [isCartGateLoading, setIsCartGateLoading] = useState(true);
   const pendingOrder     = useRef(false); // true when user hit Place Order before login
   const pendingAddrSheet = useRef(false); // true when navigated to LocationPicker to add address
 
@@ -346,14 +347,29 @@ export default function CartScreen({ navigation }) {
   // ── Hide bottom tab bar while on this screen ──────────────────────────────
   const { hideTabBar, showTabBar } = useTabBar();
   useFocusEffect(useCallback(() => {
+    let isActive = true;
     hideTabBar();
+
+    // Cart decisions must use fresh flash data, not cooldown-stale state.
+    setIsCartGateLoading(true);
+    (async () => {
+      try {
+        await refreshFlashCritical({ reason: 'cart_open' });
+      } finally {
+        if (isActive) setIsCartGateLoading(false);
+      }
+    })();
+
     // Re-open address sheet if user just came back from the add-address flow
     if (pendingAddrSheet.current) {
       pendingAddrSheet.current = false;
       setAddrSheet(true);
     }
-    return () => showTabBar();
-  }, [hideTabBar, showTabBar]));
+    return () => {
+      isActive = false;
+      showTabBar();
+    };
+  }, [hideTabBar, showTabBar, refreshFlashCritical]));
 
   // Re-hide the tab bar whenever the auth sheet is dismissed.
   // On web, showing a Modal can trigger a navigation blur/focus cycle which
@@ -459,6 +475,64 @@ export default function CartScreen({ navigation }) {
   };
 
   if (items.length === 0) return <EmptyCart navigation={navigation} insets={insets} />;
+
+  if (isCartGateLoading) {
+    return (
+      <View style={[styles.root, { paddingTop: insets.top }]}>
+        <StatusBar barStyle="dark-content" backgroundColor={SURFACE} />
+        <View style={[styles.header, { paddingTop: 0 }]}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+            <Ionicons name="arrow-back" size={20} color={TEXT_PRI} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Cart Review</Text>
+          <View style={{ width: 40 }} />
+        </View>
+
+        <View style={styles.gateWrap}>
+          <ActivityIndicator size="small" color={ACCENT} />
+          <Text style={styles.gateTitle}>Updating delivery availability...</Text>
+          <Text style={styles.gateSub}>Checking your current location and service zone</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (permissionStatus !== 'granted' || serviceability?.serviceable === false) {
+    return (
+      <View style={[styles.root, { paddingTop: insets.top }]}>
+        <StatusBar barStyle="dark-content" backgroundColor={SURFACE} />
+        <View style={[styles.header, { paddingTop: 0 }]}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+            <Ionicons name="arrow-back" size={20} color={TEXT_PRI} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Cart Review</Text>
+          <View style={{ width: 40 }} />
+        </View>
+
+        <View style={styles.gateWrap}>
+          <Ionicons name="location-outline" size={30} color={TEXT_SEC} />
+          <Text style={styles.gateTitle}>Delivery unavailable right now</Text>
+          <Text style={styles.gateSub}>
+            {serviceability?.message || 'Please update location and try again.'}
+          </Text>
+          <TouchableOpacity
+            style={styles.gateRetryBtn}
+            onPress={async () => {
+              setIsCartGateLoading(true);
+              try {
+                await refreshFlashCritical({ reason: 'cart_retry' });
+              } finally {
+                setIsCartGateLoading(false);
+              }
+            }}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.gateRetryText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <>
@@ -1065,6 +1139,39 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: TEXT_MUTED,
     lineHeight: 17,
+  },
+
+  gateWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  gateTitle: {
+    marginTop: 12,
+    fontSize: 15,
+    fontWeight: '700',
+    color: TEXT_PRI,
+    textAlign: 'center',
+  },
+  gateSub: {
+    marginTop: 6,
+    fontSize: 13,
+    color: TEXT_SEC,
+    textAlign: 'center',
+    lineHeight: 19,
+  },
+  gateRetryBtn: {
+    marginTop: 16,
+    backgroundColor: ACCENT,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  gateRetryText: {
+    color: WHITE,
+    fontSize: 13,
+    fontWeight: '700',
   },
 
   // ── Address card ─────────────────────────────────────────────────────────────

@@ -34,6 +34,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { IS_DEV } from '../../api/env';
 import { getStores } from '../../api/storeApi';
 import { useLocation } from '../../context/LocationContext';
 import { useTabBar, TAB_BAR_H } from '../../context/TabBarContext';
@@ -41,7 +42,6 @@ import { useCart } from '../../context/CartContext';
 import { useAddress } from '../../context/AddressContext';
 import CartFloatingCard from '../../components/CartFloatingCard';
 import Toast from '../../components/Toast';
-import * as Location from 'expo-location';
 
 const { width: SW } = Dimensions.get('window');
 
@@ -402,16 +402,20 @@ export default function StoreListingScreen({ navigation }) {
   const totalCartItems = items.reduce((s, i) => s + i.quantity, 0);
 
   // ── Location / serviceability ─────────────────────────────────────────────────
-  const { coords, serviceability, status: locationStatus, permissionStatus, runServiceabilityCheck } = useLocation();
+  const {
+    coords,
+    serviceability,
+    status: locationStatus,
+    permissionStatus,
+    requestPermission,
+    flashReason,
+    flashUpdatedAt,
+    isFlashRefreshing,
+    refreshFlash,
+    refreshFlashCritical,
+  } = useLocation();
   const queryLatitude = selectedAddress?.lat ?? selectedAddress?.latitude ?? coords?.latitude ?? null;
   const queryLongitude = selectedAddress?.lng ?? selectedAddress?.longitude ?? coords?.longitude ?? null;
-
-  // Trigger serviceability check once when SLP mounts
-  useEffect(() => {
-    if (permissionStatus === 'granted' && serviceability === null && locationStatus === 'done') {
-      runServiceabilityCheck();
-    }
-  }, [permissionStatus, locationStatus]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const permissionGranted        = permissionStatus === 'granted';
   const isCheckingServiceability = ['locating', 'checking'].includes(locationStatus);
@@ -419,6 +423,13 @@ export default function StoreListingScreen({ navigation }) {
   const showPermissionCard       = locationStatus === 'done' && !permissionGranted;
   const showNonServiceableCard   = serviceabilityDone && serviceability?.serviceable === false;
   const [toastMsg, setToastMsg] = useState('');
+  const flashTimeLabel = flashUpdatedAt
+    ? new Date(flashUpdatedAt).toLocaleTimeString('en-IN')
+    : '—';
+  const flashServiceableLabel =
+    typeof serviceability?.serviceable === 'boolean'
+      ? String(serviceability.serviceable)
+      : 'n/a';
 
   // ── Category filter ───────────────────────────────────────────────────────────
   const [category, setCategory] = useState('all');
@@ -435,6 +446,13 @@ export default function StoreListingScreen({ navigation }) {
   const hasNextRef    = useRef(false);
   const isLoadingRef  = useRef(false);
   const categoryRef   = useRef('all');
+  const queryLatRef   = useRef(queryLatitude);
+  const queryLngRef   = useRef(queryLongitude);
+
+  useEffect(() => {
+    queryLatRef.current = queryLatitude;
+    queryLngRef.current = queryLongitude;
+  }, [queryLatitude, queryLongitude]);
 
   const fetchStores = useCallback(async (pageNum, replace) => {
     if (isLoadingRef.current) return;
@@ -445,8 +463,8 @@ export default function StoreListingScreen({ navigation }) {
       const res = await getStores({
         page: pageNum,
         category: categoryRef.current,
-        latitude: queryLatitude,
-        longitude: queryLongitude,
+        latitude: queryLatRef.current,
+        longitude: queryLngRef.current,
       });
       const data       = Array.isArray(res.data) ? res.data : [];
       const pagination = (res.pagination && typeof res.pagination === 'object') ? res.pagination : {};
@@ -468,7 +486,7 @@ export default function StoreListingScreen({ navigation }) {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [queryLatitude, queryLongitude]); // stable paging refs; location inputs trigger refetches
+  }, []); // stable paging refs; coordinates read from refs at call-time
 
   // Initial load + category-change refetch
   useEffect(() => {
@@ -476,7 +494,7 @@ export default function StoreListingScreen({ navigation }) {
     pageRef.current     = 1;
     hasNextRef.current  = false;
     fetchStores(1, true);
-  }, [category, queryLatitude, queryLongitude]);
+  }, [category, fetchStores]);
 
   const handleEndReached = useCallback(() => {
     if (hasNextRef.current && !isLoadingRef.current) {
@@ -638,10 +656,7 @@ export default function StoreListingScreen({ navigation }) {
             title="Location access needed"
             subtitle="Grant location access so we can check if we deliver to your area and show you nearby stores."
             btnLabel="Grant Permission"
-            onBtn={async () => {
-              await Location.requestForegroundPermissionsAsync().catch(() => {});
-              runServiceabilityCheck();
-            }}
+            onBtn={requestPermission}
           />
         </View>
       ) : showNonServiceableCard ? (
@@ -652,6 +667,8 @@ export default function StoreListingScreen({ navigation }) {
             iconColor="#92400E"
             title="We’re not in your area yet"
             subtitle="We’re expanding rapidly and will be available in your location very soon. Stay tuned!"
+            btnLabel={isFlashRefreshing ? 'Checking…' : 'Retry'}
+            onBtn={() => refreshFlashCritical({ reason: 'manual_retry' })}
           />
         </View>
       ) : (
@@ -757,6 +774,17 @@ export default function StoreListingScreen({ navigation }) {
       {/* ━━━ Toast — serviceability / error messages ━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
       <Toast message={toastMsg} onDismiss={() => setToastMsg('')} />
 
+      {/* ━━━ Dev debug panel — flash checkpoint visibility ━━━━━━━━━━━━━━━━━━━ */}
+      {IS_DEV && (
+        <View pointerEvents="none" style={styles.flashDebugCard}>
+          <Text style={styles.flashDebugTitle}>flash debug</Text>
+          <Text style={styles.flashDebugText}>reason: {flashReason ?? '—'}</Text>
+          <Text style={styles.flashDebugText}>at: {flashTimeLabel}</Text>
+          <Text style={styles.flashDebugText}>serviceable: {flashServiceableLabel}</Text>
+          <Text style={styles.flashDebugText}>refreshing: {String(isFlashRefreshing)}</Text>
+        </View>
+      )}
+
       {/* ━━━ [3] Sticky title bar — rendered last, always on top ━━━━━━━━━━━━━━ */}
       <Animated.View
         style={[
@@ -841,6 +869,29 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: BG,
+  },
+  flashDebugCard: {
+    position: 'absolute',
+    right: 12,
+    bottom: TAB_BAR_H + 12,
+    backgroundColor: 'rgba(26, 26, 46, 0.88)',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    zIndex: 12,
+  },
+  flashDebugTitle: {
+    color: '#C4B5FD',
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    marginBottom: 3,
+    letterSpacing: 0.4,
+  },
+  flashDebugText: {
+    color: WHITE,
+    fontSize: 11,
+    lineHeight: 15,
   },
 
   // ── Title bar ────────────────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 /**
  * locationApi.js — Service availability check
  *
- * Real endpoint: POST /serviceability
+ * Real endpoint: POST /flash
  *   Body:    { lat: number, lng: number }
  *   Response: { serviceable: boolean, city: string, zone: string, message: string }
  *
@@ -97,7 +97,7 @@ export async function checkServiceability({ latitude, longitude }) {
   }
 
   try {
-    const res = await _post('/serviceability', { lat: latitude, lng: longitude });
+    const res = await _post('/flash', { lat: latitude, lng: longitude });
     const payload = res?.data && typeof res.data === 'object' ? res.data : res;
 
     // Fail closed: any non-success/invalid shape is treated as non-serviceable.
