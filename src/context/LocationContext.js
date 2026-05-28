@@ -95,18 +95,52 @@ const LocationCtx = createContext(null);
 export function LocationProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
   const appStateRef = useRef(AppState.currentState);
+  const coordsRef = useRef(null);
+  const coordsUpdatedAtRef = useRef(0);
   const serviceabilityRef = useRef(null);
   const refreshInFlightRef = useRef(false);
   const inFlightPromiseRef = useRef(null);
   const lastFlashAtRef = useRef(0);
 
   useEffect(() => {
+    coordsRef.current = state.coords;
+    if (state.coords) {
+      coordsUpdatedAtRef.current = Date.now();
+    }
+  }, [state.coords]);
+
+  useEffect(() => {
     serviceabilityRef.current = state.serviceability;
   }, [state.serviceability]);
 
+  const resolveCoords = useCallback(async ({ priority, coords }) => {
+    if (coords && typeof coords.latitude === 'number' && typeof coords.longitude === 'number') {
+      return coords;
+    }
+
+    if (priority === 'critical' && coordsRef.current) {
+      const isFresh = Date.now() - coordsUpdatedAtRef.current <= FLASH_THROTTLE_MS;
+      if (isFresh) {
+        return coordsRef.current;
+      }
+    }
+
+    try {
+      const position = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      return {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      };
+    } catch {
+      return coordsRef.current;
+    }
+  }, []);
+
   // ── Central flash refresh helper (used by startup + checkpoints) ─────────
   // priority: 'normal' obeys cooldown, 'critical' bypasses cooldown.
-  const runServiceabilityCheck = useCallback(async ({ reason = 'manual', force = false, priority = 'normal' } = {}) => {
+  const runServiceabilityCheck = useCallback(async ({ reason = 'manual', force = false, priority = 'normal', coords } = {}) => {
     const now = Date.now();
     const bypassCooldown = force || priority === 'critical';
 
@@ -122,16 +156,13 @@ export function LocationProvider({ children }) {
       dispatch({ type: 'SET_FLASH_REFRESHING', payload: true });
       dispatch({ type: 'SET_STATUS', payload: 'locating' });
 
-      let coords;
+      let resolvedCoords;
       try {
-        const position = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
-        coords = {
-          latitude:  position.coords.latitude,
-          longitude: position.coords.longitude,
-        };
-        dispatch({ type: 'SET_COORDS', payload: coords });
+        resolvedCoords = await resolveCoords({ priority, coords });
+        if (!resolvedCoords) {
+          throw new Error('No location available');
+        }
+        dispatch({ type: 'SET_COORDS', payload: resolvedCoords });
       } catch {
         dispatch({ type: 'SET_SERVICEABILITY', payload: NON_SERVICEABLE_FALLBACK });
         dispatch({ type: 'SET_FLASH_META', payload: { reason, updatedAt: now } });
@@ -141,7 +172,7 @@ export function LocationProvider({ children }) {
 
       dispatch({ type: 'SET_STATUS', payload: 'checking' });
       try {
-        const result = await checkServiceability(coords);
+        const result = await checkServiceability(resolvedCoords);
         dispatch({ type: 'SET_SERVICEABILITY', payload: result });
         dispatch({ type: 'SET_FLASH_META', payload: { reason, updatedAt: now } });
         dispatch({ type: 'SET_STATUS', payload: 'done' });
@@ -164,10 +195,10 @@ export function LocationProvider({ children }) {
     } finally {
       inFlightPromiseRef.current = null;
     }
-  }, []);
+  }, [resolveCoords]);
 
   const refreshFlashCritical = useCallback(
-    async ({ reason = 'critical_checkpoint' } = {}) => runServiceabilityCheck({ reason, priority: 'critical' }),
+    async ({ reason = 'critical_checkpoint', coords } = {}) => runServiceabilityCheck({ reason, priority: 'critical', coords }),
     [runServiceabilityCheck],
   );
 

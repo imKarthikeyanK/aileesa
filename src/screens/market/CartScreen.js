@@ -335,6 +335,11 @@ export default function CartScreen({ navigation }) {
   const [isCartGateLoading, setIsCartGateLoading] = useState(true);
   const pendingOrder     = useRef(false); // true when user hit Place Order before login
   const pendingAddrSheet = useRef(false); // true when navigated to LocationPicker to add address
+  const cartFlashCoords = useMemo(() => {
+    if (!isAuthenticated) return null;
+    if (selectedAddress?.lat == null || selectedAddress?.lng == null) return null;
+    return { latitude: selectedAddress.lat, longitude: selectedAddress.lng };
+  }, [isAuthenticated, selectedAddress?.lat, selectedAddress?.lng]);
 
   // Auto-trigger place order once user logs in from the auth sheet
   useEffect(() => {
@@ -354,7 +359,7 @@ export default function CartScreen({ navigation }) {
     setIsCartGateLoading(true);
     (async () => {
       try {
-        await refreshFlashCritical({ reason: 'cart_open' });
+        await refreshFlashCritical({ reason: 'cart_open', coords: cartFlashCoords });
       } finally {
         if (isActive) setIsCartGateLoading(false);
       }
@@ -369,7 +374,7 @@ export default function CartScreen({ navigation }) {
       isActive = false;
       showTabBar();
     };
-  }, [hideTabBar, showTabBar, refreshFlashCritical]));
+  }, [hideTabBar, showTabBar, refreshFlashCritical, cartFlashCoords]);
 
   // Re-hide the tab bar whenever the auth sheet is dismissed.
   // On web, showing a Modal can trigger a navigation blur/focus cycle which
@@ -520,7 +525,7 @@ export default function CartScreen({ navigation }) {
             onPress={async () => {
               setIsCartGateLoading(true);
               try {
-                await refreshFlashCritical({ reason: 'cart_retry' });
+                await refreshFlashCritical({ reason: 'cart_retry', coords: cartFlashCoords });
               } finally {
                 setIsCartGateLoading(false);
               }

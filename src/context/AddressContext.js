@@ -69,6 +69,11 @@ export function AddressProvider({ children }) {
   // In-memory store for the anonymous user's last created address.
   const anonymousAddressRef = useRef(null);
 
+  const toCoords = useCallback((addr) => {
+    if (!addr || addr.lat == null || addr.lng == null) return null;
+    return { latitude: addr.lat, longitude: addr.lng };
+  }, []);
+
   // ── Auto-select closest address given coords ──────────────────────────────
   const autoSelectClosestAddress = useCallback((coords, list) => {
     const pool = list ?? [];
@@ -189,7 +194,10 @@ export function AddressProvider({ children }) {
     }
 
     // Checkpoint: location/address changed — refresh flash state.
-    refreshFlashCritical({ reason: 'address_change' });
+    refreshFlashCritical({
+      reason: 'address_change',
+      coords: isAuthenticated ? { latitude: formData.lat, longitude: formData.lng } : undefined,
+    });
 
     return localAddr;
   }, [isAuthenticated, getAccessToken, refreshAddresses, refreshFlashCritical]);
@@ -197,8 +205,11 @@ export function AddressProvider({ children }) {
   const selectAddress = useCallback((addr) => {
     setSelectedAddress(addr);
     // Checkpoint: saved address switched by the user.
-    refreshFlashCritical({ reason: 'address_change' });
-  }, [refreshFlashCritical]);
+    refreshFlashCritical({
+      reason: 'address_change',
+      coords: isAuthenticated ? toCoords(addr) : undefined,
+    });
+  }, [isAuthenticated, refreshFlashCritical, toCoords]);
 
   const value = {
     selectedAddress,

@@ -488,14 +488,6 @@ export default function StoreListingScreen({ navigation }) {
     }
   }, []); // stable paging refs; coordinates read from refs at call-time
 
-  // Initial load + category-change refetch
-  useEffect(() => {
-    categoryRef.current = category;
-    pageRef.current     = 1;
-    hasNextRef.current  = false;
-    fetchStores(1, true);
-  }, [category, fetchStores]);
-
   const handleEndReached = useCallback(() => {
     if (hasNextRef.current && !isLoadingRef.current) {
       fetchStores(pageRef.current + 1, false);
@@ -508,6 +500,14 @@ export default function StoreListingScreen({ navigation }) {
     hasNextRef.current = false;
     fetchStores(1, true);
   }, [fetchStores]);
+
+  // If the chosen address changes, refresh the store list with the new coords.
+  useEffect(() => {
+    categoryRef.current = category;
+    pageRef.current     = 1;
+    hasNextRef.current  = false;
+    fetchStores(1, true);
+  }, [category, queryLatitude, queryLongitude, fetchStores]);
 
   const TOTAL_HEADER_H = insets.top + TITLE_BAR_H + EXPAND_H + (FEATURE_SEARCH ? SEARCH_H : 0);
 
