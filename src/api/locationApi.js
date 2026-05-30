@@ -3,7 +3,9 @@
  *
  * Real endpoint: POST /flash
  *   Body:    { lat: number, lng: number }
- *   Response: { serviceable: boolean, city: string, zone: string, message: string }
+ *   Response: { serviceable: boolean, city: string, zone: string, message: string,
+ *               min_order_value: number|null, delivery_fee: number,
+ *               free_delivery_above: number|null, platform_fee: number }
  *
  * Mock: returns serviceable=true for six major metro bounding boxes.
  *       All other coordinates → not serviceable.
@@ -89,10 +91,15 @@ export async function checkServiceability({ latitude, longitude }) {
     ) ?? SERVICEABLE_ZONES[0]; // default to Bangalore when outside all zones
 
     return {
-      serviceable: true,
-      city:        devMatch.name,
-      zone:        devMatch.zone,
-      message:     `Aileesa delivers in ${devMatch.name}!`,
+      serviceable:         true,
+      city:                devMatch.name,
+      zone:                devMatch.zone,
+      message:             `Aileesa delivers in ${devMatch.name}!`,
+      // Service levels — mirror production values in dev so the cart UI renders correctly
+      min_order_value:     149,
+      delivery_fee:        29,
+      free_delivery_above: 199,
+      platform_fee:        5,
     };
   }
 
@@ -106,10 +113,15 @@ export async function checkServiceability({ latitude, longitude }) {
     }
 
     return {
-      serviceable: payload.serviceable,
-      city: payload?.city ?? null,
-      zone: payload?.zone ?? null,
-      message: payload?.message ?? NON_SERVICEABLE_FALLBACK.message,
+      serviceable:         payload.serviceable,
+      city:                payload?.city              ?? null,
+      zone:                payload?.zone              ?? null,
+      message:             payload?.message           ?? NON_SERVICEABLE_FALLBACK.message,
+      // Service levels — null/0 treated as "no constraint / free" by CartScreen
+      min_order_value:     payload?.min_order_value   ?? null,
+      delivery_fee:        payload?.delivery_fee      ?? 0,
+      free_delivery_above: payload?.free_delivery_above ?? null,
+      platform_fee:        payload?.platform_fee      ?? 0,
     };
   } catch {
     return NON_SERVICEABLE_FALLBACK;

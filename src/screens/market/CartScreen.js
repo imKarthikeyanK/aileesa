@@ -50,11 +50,9 @@ const BORDER  = '#EDECF5';
 const SUCCESS = '#10B981';
 const AMBER   = '#FBBF24';
 
-const DELIVERY_FEE         = 29;   // flat fee when subtotal is between MOV and free-delivery threshold
-const FREE_DELIVERY_ABOVE  = 199;  // free delivery at/above this subtotal
-const MIN_ORDER_VALUE      = 149;  // orders below this cannot be placed
-const PLATFORM_FEE         = 5;
-const GST_RATE             = 0.05;
+// min_order_value, delivery_fee, free_delivery_above, platform_fee are now
+// served by the /flash API and read from LocationContext.serviceability.
+const GST_RATE = 0.05; // reserved for future invoice breakup
 
 // ─── AddressPicker sheet ───────────────────────────────────────────────────────
 
@@ -329,6 +327,23 @@ export default function CartScreen({ navigation }) {
   const { isAuthenticated, getAccessToken } = useAuth();
   const { selectedAddress, isLoading: addrLoading, autoSelectClosestAddress } = useAddress();
   const { coords, refreshFlashCritical, serviceability, permissionStatus } = useLocation();
+
+  // ── Service levels from /flash ────────────────────────────────────────────────────────────────
+  // Stored in serviceability by checkServiceability(). Safe to read after the
+  // cart gate completes (isCartGateLoading = false), which is the only render path.
+  //
+  //   effMinOrder  : 0 or null from API → no minimum check
+  //   effDelivFee  : delivery fee; 0 → always free
+  //   effFreeAbove : null when free_delivery_above is 0/null OR effDelivFee is 0
+  //                  (null → always free delivery regardless of subtotal)
+  //   effPlatform  : 0 from API → platform fee is FREE
+  const effMinOrder  = serviceability?.min_order_value  || 0;
+  const effDelivFee  = serviceability?.delivery_fee     ?? 29;
+  const effFreeAbove = (!serviceability?.free_delivery_above || effDelivFee === 0)
+    ? null
+    : serviceability.free_delivery_above;
+  const effPlatform  = serviceability?.platform_fee     ?? 5;
+
   const [placing, setPlacing]         = useState(false);
   const [authSheet, setAuthSheet]     = useState(false);
   const [addrSheet, setAddrSheet]     = useState(false);
@@ -436,19 +451,21 @@ export default function CartScreen({ navigation }) {
     return Object.values(map);
   }, [items]);
 
-  const subtotal        = items.reduce((s, i) => s + i.price * i.quantity, 0);
-  const hasFee          = subtotal > 0;
-  const belowMinimum    = subtotal < MIN_ORDER_VALUE;
-  const freeDelivery    = subtotal >= FREE_DELIVERY_ABOVE;
-  const delivery        = hasFee ? (freeDelivery ? 0 : DELIVERY_FEE) : 0;
-  const platform        = hasFee ? PLATFORM_FEE : 0;
+  const subtotal       = items.reduce((s, i) => s + i.price * i.quantity, 0);
+  const hasFee         = subtotal > 0;
+  // belowMinimum: false when effMinOrder is 0 (API said no minimum)
+  const belowMinimum   = effMinOrder > 0 && subtotal < effMinOrder;
+  // freeDelivery: true when effFreeAbove is null (always free) or subtotal meets threshold
+  const freeDelivery   = effFreeAbove == null || subtotal >= effFreeAbove;
+  const delivery       = hasFee ? (freeDelivery ? 0 : effDelivFee) : 0;
+  const platform       = hasFee ? effPlatform : 0;
   // GST handling TBD — not shown in invoice for now
-  // const taxes        = Math.round(subtotal * GST_RATE);
-  const grandTotal      = subtotal + delivery + platform;
+  // const taxes       = Math.round(subtotal * GST_RATE);
+  const grandTotal     = subtotal + delivery + platform;
 
-  // Progress towards free delivery (only relevant when above MOV and below threshold)
-  const toFreeDelivery  = Math.max(0, FREE_DELIVERY_ABOVE - subtotal);
-  const toMinimum       = Math.max(0, MIN_ORDER_VALUE - subtotal);
+  // Progress bars
+  const toFreeDelivery = effFreeAbove != null ? Math.max(0, effFreeAbove - subtotal) : 0;
+  const toMinimum      = effMinOrder  > 0     ? Math.max(0, effMinOrder  - subtotal) : 0;
 
   const handlePlaceOrder = async () => {
     if (!isAuthenticated) {
@@ -586,10 +603,11 @@ export default function CartScreen({ navigation }) {
       <View style={styles.promoStrip}>
         <Ionicons name="bicycle-outline" size={13} color={SUCCESS} />
         <Text style={styles.promoStripText}>
-          FREE delivery on orders above{' '}
-          <Text style={styles.promoStripBold}>₹{FREE_DELIVERY_ABOVE}</Text>
-          {'  ·  '}
-          <Text style={styles.promoStripMuted}>Min. order ₹{MIN_ORDER_VALUE}</Text>
+          {effFreeAbove != null
+            ? <><Text>{'FREE delivery on orders above '}</Text><Text style={styles.promoStripBold}>₹{effFreeAbove}</Text></>
+            : 'FREE delivery on all orders'
+          }
+          {effMinOrder > 0 && <><Text>{'  ·  '}</Text><Text style={styles.promoStripMuted}>Min. order ₹{effMinOrder}</Text></>}
         </Text>
       </View>
 
@@ -611,7 +629,7 @@ export default function CartScreen({ navigation }) {
               <View style={[styles.deliveryChip, !freeDelivery && styles.deliveryChipPaid]}>
                 <Ionicons name="bicycle-outline" size={12} color={freeDelivery ? SUCCESS : AMBER} />
                 <Text style={[styles.deliveryChipText, !freeDelivery && styles.deliveryChipTextPaid]}>
-                  {freeDelivery ? 'Free delivery' : `₹${DELIVERY_FEE} delivery`}
+                  {freeDelivery ? 'Free delivery' : `₹${effDelivFee} delivery`}
                 </Text>
               </View>
             </View>
@@ -664,12 +682,12 @@ export default function CartScreen({ navigation }) {
                 style={[
                   styles.progressFill,
                   styles.progressFillDanger,
-                  { width: `${Math.min(100, (subtotal / MIN_ORDER_VALUE) * 100)}%` },
+                  { width: `${effMinOrder > 0 ? Math.min(100, (subtotal / effMinOrder) * 100) : 100}%` },
                 ]}
               />
             </View>
             <Text style={styles.nudgeSub}>
-              Minimum order value is ₹{MIN_ORDER_VALUE}
+              Minimum order value is ₹{effMinOrder}
             </Text>
           </View>
         ) : !freeDelivery ? (
@@ -687,7 +705,7 @@ export default function CartScreen({ navigation }) {
                 style={[
                   styles.progressFill,
                   styles.progressFillAmber,
-                  { width: `${Math.min(100, (subtotal / FREE_DELIVERY_ABOVE) * 100)}%` },
+                  { width: `${effFreeAbove != null ? Math.min(100, (subtotal / effFreeAbove) * 100) : 100}%` },
                 ]}
               />
             </View>
@@ -711,7 +729,7 @@ export default function CartScreen({ navigation }) {
             value={freeDelivery ? 'FREE' : `₹${delivery}`}
             accent={freeDelivery}
           />
-          <SummaryRow label="Platform fee" value={`₹${platform}`} muted />
+          <SummaryRow label="Platform fee" value={platform === 0 ? 'FREE' : `₹${platform}`} muted />
           {/* GST breakup hidden — handling TBD; will be added back in a later release */}
           {/* <SummaryRow label={`GST (${GST_RATE * 100}%)`} value={`₹${taxes}`} muted /> */}
 
