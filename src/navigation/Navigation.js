@@ -146,7 +146,8 @@ const linking = {
           StoreListing:   'market',
           StoreDetail:    'store/:storeId',
           Cart:           'cart',
-          BookingDetail:  'market/orders/:orderId',
+          OrderSuccess:   'orders/:orderId/success',
+          BookingDetail:  'orders/:orderId',
           LocationPicker: 'location',
         },
       },
@@ -155,7 +156,7 @@ const linking = {
         screens: {
           YouHome:       'you',
           OrderHistory:  'orders',
-          BookingDetail: 'orders/:orderId',
+          // BookingDetail resolved via Market stack to avoid duplicate path ambiguity
         },
       },
     },

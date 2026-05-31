@@ -35,7 +35,7 @@
       "intentFilters": [
         {
           "action": "VIEW",
-          "autoVerify": true,
+          "autoVerify": false,
           "data": [
             {
               "scheme": "aileesa"

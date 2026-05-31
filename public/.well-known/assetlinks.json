@@ -1,0 +1,10 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.aileesa.app",
+    "sha256_cert_fingerprints": [
+      "0F:FD:C5:1E:20:36:8C:61:1F:9D:39:FB:02:7F:42:13:C6:6A:73:18:15:D6:31:23:E9:BB:AF:CD:A6:00:F1:03"
+    ]
+  }
+}]
