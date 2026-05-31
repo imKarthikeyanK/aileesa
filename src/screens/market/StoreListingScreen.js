@@ -457,6 +457,9 @@ export default function StoreListingScreen({ navigation }) {
   const categoryRef   = useRef('all');
   const queryLatRef   = useRef(queryLatitude);
   const queryLngRef   = useRef(queryLongitude);
+  // Remembers the exact (page, replace) args of the most recent fetch attempt so
+  // the error-footer retry always re-issues the same call, not a hardcoded append.
+  const lastFetchAttemptRef = useRef({ page: 1, replace: true });
 
   useEffect(() => {
     queryLatRef.current = queryLatitude;
@@ -466,6 +469,7 @@ export default function StoreListingScreen({ navigation }) {
   const fetchStores = useCallback(async (pageNum, replace) => {
     if (isLoadingRef.current) return;
     isLoadingRef.current = true;
+    lastFetchAttemptRef.current = { page: pageNum, replace }; // must be set before any await
     if (replace) setLoading(true);
 
     try {
@@ -631,7 +635,10 @@ export default function StoreListingScreen({ navigation }) {
         <View style={styles.errorBanner}>
           <Ionicons name="alert-circle-outline" size={16} color="#C62828" />
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity onPress={() => fetchStores(pageRef.current, false)}>
+          <TouchableOpacity onPress={() => {
+            const { page, replace } = lastFetchAttemptRef.current;
+            fetchStores(page, replace);
+          }}>
             <Text style={styles.retryText}>Retry</Text>
           </TouchableOpacity>
         </View>
