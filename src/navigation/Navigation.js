@@ -135,6 +135,7 @@ function TabLabel({ label, focused }) {
 
 const linking = {
   prefixes: [
+    'https://www.aileesa.com',
     'https://aileesa.com',
     'aileesa://',
     ...(IS_DEV ? ['http://localhost:8081'] : []),
