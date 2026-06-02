@@ -42,6 +42,7 @@ import { useCart } from '../../context/CartContext';
 import { useAddress } from '../../context/AddressContext';
 import CartFloatingCard from '../../components/CartFloatingCard';
 import Toast from '../../components/Toast';
+import AuthSheet from '../../components/auth/AuthSheet';
 
 const { width: SW } = Dimensions.get('window');
 
@@ -206,7 +207,7 @@ const CATEGORIES = [
 // ─── LocationCard ─────────────────────────────────────────────────────────────
 // Shared card for both "permission denied" and "not serviceable" states.
 
-function LocationCard({ icon, iconBg, iconColor, title, subtitle, btnLabel, onBtn }) {
+function LocationCard({ icon, iconBg, iconColor, title, subtitle, btnLabel, onBtn, loginLabel, onLogin }) {
   return (
     <View style={styles.locCardWrap}>
       <View style={styles.locCard}>
@@ -222,6 +223,15 @@ function LocationCard({ icon, iconBg, iconColor, title, subtitle, btnLabel, onBt
             activeOpacity={0.85}
           >
             <Text style={styles.locCardBtnText}>{btnLabel}</Text>
+          </TouchableOpacity>
+        )}
+        {loginLabel && (
+          <TouchableOpacity
+            style={[styles.locCardLoginBtn, { borderColor: iconColor }]}
+            onPress={onLogin}
+            activeOpacity={0.85}
+          >
+            <Text style={[styles.locCardBtnText, { color: iconColor }]}>{loginLabel}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -449,6 +459,7 @@ export default function StoreListingScreen({ navigation }) {
   const [loading,    setLoading]    = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error,      setError]      = useState(null);
+  const [authSheetVisible, setAuthSheetVisible] = useState(false);
 
   // Refs for pagination state (avoid stale closures in callbacks)
   const pageRef       = useRef(1);
@@ -725,6 +736,8 @@ export default function StoreListingScreen({ navigation }) {
             subtitle="We’re expanding rapidly and will be available in your location very soon. Stay tuned!"
             btnLabel={isFlashRefreshing ? 'Checking…' : 'Retry'}
             onBtn={() => refreshFlashCritical({ reason: 'manual_retry' })}
+            loginLabel="Login"
+            onLogin={() => setAuthSheetVisible(true)}
           />
         </View>
       ) : (
@@ -829,6 +842,9 @@ export default function StoreListingScreen({ navigation }) {
 
       {/* ━━━ Toast — serviceability / error messages ━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
       <Toast message={toastMsg} onDismiss={() => setToastMsg('')} />
+
+      {/* ━━━ Auth sheet — opened from non-serviceable card login CTA ━━━━━━━━━━ */}
+      <AuthSheet visible={authSheetVisible} onClose={() => setAuthSheetVisible(false)} />
 
       {/* ━━━ Dev debug panel — flash checkpoint visibility ━━━━━━━━━━━━━━━━━━━ */}
       {IS_DEV && (
@@ -1492,6 +1508,16 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 14,
     alignItems: 'center',
+    width: '100%',
+  },
+  locCardLoginBtn: {
+    marginTop: 8,
+    paddingHorizontal: 32,
+    paddingVertical: 13,
+    borderRadius: 14,
+    alignItems: 'center',
+    width: '100%',
+    borderWidth: 1.5,
   },
   locCardBtnText: {
     fontSize: 15,

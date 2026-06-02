@@ -34,7 +34,7 @@ const ENVIRONMENTS = {
   dev: {
     name:       'dev',
     label:      'Development',
-    apiBaseUrl: 'https://eff8-2406-7400-11d-4bad-f8ca-4c6a-4f68-a375.ngrok-free.app',
+    apiBaseUrl: 'https://squid-bacon-conch.ngrok-free.dev',
     /** Show dev-only UI (mock OTP banner, env badge, etc.) */
     debugUI:    true,
     /** Default auth provider when ACTIVE_PROVIDER in authApi.js is not 'real' */
