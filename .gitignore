@@ -9,6 +9,7 @@ npm-debug.*
 *.key
 *.mobileprovision
 *.orig.*
+.env
 
 build*
 !src/api/buildConfig.js
