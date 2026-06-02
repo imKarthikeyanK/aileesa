@@ -122,6 +122,7 @@ export async function checkServiceability({ latitude, longitude }) {
       delivery_fee:        payload?.delivery_fee      ?? 0,
       free_delivery_above: payload?.free_delivery_above ?? null,
       platform_fee:        payload?.platform_fee      ?? 0,
+      notice_txt:          payload?.notice_txt         ?? null,
     };
   } catch {
     return NON_SERVICEABLE_FALLBACK;

@@ -112,7 +112,7 @@ function QuantityControl({ quantity, onAdd, onRemove, maxReached }) {
 
 // ─── InventoryCard ─────────────────────────────────────────────────────────────
 
-function InventoryCard({ item, storeId, storeName, businessId, storeClosed }) {
+function InventoryCard({ item, storeId, storeName, businessId, storeClosed, deliveryTime }) {
   const { addItem, removeItem, getItemQuantity } = useCart();
   const quantity   = getItemQuantity(item.id, storeId);
   const maxReached = item.max_quantity_per_item
@@ -145,10 +145,11 @@ function InventoryCard({ item, storeId, storeName, businessId, storeClosed }) {
       storeId,
       storeName,
       business_id:           businessId,
+      delivery_time:         deliveryTime,
       multi_add:             item.multi_add,
       max_quantity_per_item: item.max_quantity_per_item,
     });
-  }, [item, storeId, storeName, businessId, addItem]);
+  }, [item, storeId, storeName, businessId, deliveryTime, addItem]);
 
   const handleRemove = useCallback(() => {
     removeItem(item.id, storeId);
@@ -254,7 +255,7 @@ function InventoryCard({ item, storeId, storeName, businessId, storeClosed }) {
 
 // ─── SectionBlock ──────────────────────────────────────────────────────────────
 
-function SectionBlock({ section, storeId, storeName, businessId, storeClosed, onLayout, isLast }) {
+function SectionBlock({ section, storeId, storeName, businessId, storeClosed, deliveryTime, onLayout, isLast }) {
   return (
     <View onLayout={onLayout}>
       <View style={styles.sectionHeader}>
@@ -264,7 +265,14 @@ function SectionBlock({ section, storeId, storeName, businessId, storeClosed, on
 
       {section.items.map((item, idx) => (
         <React.Fragment key={item.id}>
-          <InventoryCard item={item} storeId={storeId} storeName={storeName} businessId={businessId} storeClosed={storeClosed} />
+          <InventoryCard
+            item={item}
+            storeId={storeId}
+            storeName={storeName}
+            businessId={businessId}
+            storeClosed={storeClosed}
+            deliveryTime={deliveryTime}
+          />
           {idx < section.items.length - 1 && <View style={styles.itemDivider} />}
         </React.Fragment>
       ))}
@@ -451,7 +459,11 @@ export default function StoreDetailScreen({ route, navigation }) {
   const iconColor    = storeDetail.icon_color   || storeDetail.iconColor   || '#6200EE';
   const tagColor     = storeDetail.tag_color    || storeDetail.tagColor    || '#6200EE';
   const reviewCount  = storeDetail.review_count  ?? storeDetail.reviewCount  ?? 0;
-  const deliveryTime = storeDetail.delivery_time ?? storeDetail.deliveryTime;
+  const deliveryTime =
+    storeDetail.delivery_time ??
+    storeDetail.deliveryTime ??
+    routeStore.delivery_time ??
+    routeStore.deliveryTime;
 
   // categories is an array from the API; fall back to the legacy category string
   const categoryLabel = (() => {
@@ -708,6 +720,7 @@ export default function StoreDetailScreen({ route, navigation }) {
             storeName={storeDetail.name}
             businessId={storeDetail.business_id}
             storeClosed={isStoreClosed}
+            deliveryTime={deliveryTime}
             isLast={sIdx === sections.length - 1 && !invHasNext}
             onLayout={e => { sectionOffsets.current[sIdx] = e.nativeEvent.layout.y; }}
           />

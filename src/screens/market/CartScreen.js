@@ -272,6 +272,20 @@ function SummaryRow({ label, value, bold, accent, muted }) {
   );
 }
 
+function parseDeliveryTime(raw) {
+  if (raw == null) return null;
+  const text = String(raw).replace(/_/g, ' ').trim();
+  const match = text.match(/(\d+)/);
+  if (!match) return { text };
+
+  const value = match[1];
+  const unitRaw = text.slice(match.index + value.length).trim().toLowerCase();
+  let unit = unitRaw || 'min';
+  if (unit.startsWith('mins') || unit.startsWith('minute')) unit = 'min';
+
+  return { value, unit };
+}
+
 // ─── EmptyCart ─────────────────────────────────────────────────────────────────
 
 function EmptyCart({ navigation, insets }) {
@@ -338,6 +352,7 @@ export default function CartScreen({ navigation }) {
   //                  (null → always free delivery regardless of subtotal)
   //   effPlatform  : 0 from API → platform fee is FREE
   const effMinOrder  = serviceability?.min_order_value  || 0;
+  const noticeTxt    = serviceability?.notice_txt       || '';
   const effDelivFee  = serviceability?.delivery_fee     ?? 29;
   const effFreeAbove = (!serviceability?.free_delivery_above || effDelivFee === 0)
     ? null
@@ -444,7 +459,12 @@ export default function CartScreen({ navigation }) {
     const map = {};
     items.forEach(item => {
       if (!map[item.storeId]) {
-        map[item.storeId] = { storeId: item.storeId, storeName: item.storeName, items: [] };
+        map[item.storeId] = {
+          storeId: item.storeId,
+          storeName: item.storeName,
+          deliveryTime: item.delivery_time ?? item.deliveryTime ?? null,
+          items: [],
+        };
       }
       map[item.storeId].items.push(item);
     });
@@ -481,6 +501,10 @@ export default function CartScreen({ navigation }) {
     try {
       const token = await getAccessToken();
       const firstItem = items[0];
+      const orderDeliveryTime =
+        firstItem?.delivery_time ??
+        firstItem?.deliveryTime ??
+        null;
       const orderItems = items.map(i => ({
         id:         i.id,
         variant_id: i.variant_id,
@@ -500,7 +524,7 @@ export default function CartScreen({ navigation }) {
         grand_total:     grandTotal,
         user_address_id: selectedAddress.id,
         payment_method:  'COD',
-        delivery_time:   '30_mins',
+        delivery_time:   orderDeliveryTime,
         accessToken:     token,
       });
       clearCart();
@@ -626,12 +650,22 @@ export default function CartScreen({ navigation }) {
                 <Ionicons name="storefront-outline" size={16} color={ACCENT} />
                 <Text style={styles.storeName}>{group.storeName}</Text>
               </View>
-              <View style={[styles.deliveryChip, !freeDelivery && styles.deliveryChipPaid]}>
-                <Ionicons name="bicycle-outline" size={12} color={freeDelivery ? SUCCESS : AMBER} />
-                <Text style={[styles.deliveryChipText, !freeDelivery && styles.deliveryChipTextPaid]}>
-                  {freeDelivery ? 'Free delivery' : `₹${effDelivFee} delivery`}
-                </Text>
-              </View>
+              {(() => {
+                const parsed = parseDeliveryTime(group.deliveryTime);
+                return (
+                  <View style={styles.deliveryChip}>
+                    <Ionicons name="time-outline" size={12} color={SUCCESS} />
+                    {parsed?.value ? (
+                      <View style={styles.deliveryTimeWrap}>
+                        <Text style={styles.deliveryTimeValue}>{parsed.value}</Text>
+                        <Text style={styles.deliveryTimeUnit}>{parsed.unit}</Text>
+                      </View>
+                    ) : (
+                      <Text style={styles.deliveryChipText}>{parsed?.text || 'Fast delivery'}</Text>
+                    )}
+                  </View>
+                );
+              })()}
             </View>
 
             {/* Cart items */}
@@ -688,6 +722,9 @@ export default function CartScreen({ navigation }) {
             </View>
             <Text style={styles.nudgeSub}>
               Minimum order value is ₹{effMinOrder}
+            </Text>
+            <Text style={styles.nudgeSub}>
+              {noticeTxt}
             </Text>
           </View>
         ) : !freeDelivery ? (
@@ -874,19 +911,30 @@ const styles = StyleSheet.create({
     gap: 4,
     backgroundColor: '#E8F5E9',
     borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  deliveryChipPaid: {
-    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
   },
   deliveryChipText: {
     fontSize: 11,
     fontWeight: '600',
     color: SUCCESS,
   },
-  deliveryChipTextPaid: {
-    color: '#B45309',
+  deliveryTimeWrap: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 2,
+  },
+  deliveryTimeValue: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: SUCCESS,
+    lineHeight: 17,
+  },
+  deliveryTimeUnit: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: SUCCESS,
+    lineHeight: 13,
   },
 
   // ── Items card ───────────────────────────────────────────────────────────────

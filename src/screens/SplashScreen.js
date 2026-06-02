@@ -9,6 +9,7 @@
 import React, { useEffect, useRef } from 'react';
 import {
   Animated,
+  Image,
   StyleSheet,
   Text,
   View,
@@ -124,12 +125,16 @@ export default function SplashScreen({ onDone }) {
           style={[styles.pulseRing, { transform: [{ scale: pulseScale }] }]}
         />
         <View style={styles.logoCircle}>
-          <Text style={styles.logoLetter}>A</Text>
+          <Image
+            source={require('../../assets/icon.png')}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
         </View>
       </View>
 
       <Text style={styles.appName}>Aileesa</Text>
-      <Text style={styles.tagline}>Quick commerce, delivered fast</Text>
+      <Text style={styles.tagline}>Discover. Shop. Connect Locally</Text>
 
       {/* ── Loading state ────────────────────────────────────────────────────── */}
       {(isLoading || status === 'done') && (
@@ -194,6 +199,11 @@ const styles = StyleSheet.create({
     fontWeight:      '900',
     color:           WHITE,
     letterSpacing:   -2,
+  },
+  logoImage: {
+    width: 56,
+    height: 56,
+    borderRadius: 14,
   },
 
   // ── Wordmark ──────────────────────────────────────────────────────────────────
