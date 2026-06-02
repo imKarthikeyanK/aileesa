@@ -25,6 +25,11 @@ import { AuthProvider } from './src/context/AuthContext';
 import { AddressProvider } from './src/context/AddressContext';
 import SplashScreen from './src/screens/SplashScreen';
 import CartConflictModal from './src/components/CartConflictModal';
+import { redirectMobileToStore } from './src/utils/mobileRedirect';
+
+// Redirect mobile visitors to the appropriate app store when the app is not
+// installed (the OS fell back to the browser instead of intercepting the link).
+redirectMobileToStore();
 
 export default function App() {
   const [splashDone, setSplashDone] = useState(false);
