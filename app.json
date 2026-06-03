@@ -2,7 +2,7 @@
   "expo": {
     "name": "Aileesa",
     "slug": "aileesa",
-    "version": "1.2.4",
+    "version": "1.2.5",
     "scheme": "aileesa",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.aileesa.app",
-      "buildNumber": "7",
+      "buildNumber": "8",
       "associatedDomains": [
         "applinks:aileesa.com"
       ],
@@ -31,7 +31,7 @@
         "backgroundColor": "#6200EE"
       },
       "package": "com.aileesa.app",
-      "versionCode": 7,
+      "versionCode": 8,
       "intentFilters": [
         {
           "action": "VIEW",
