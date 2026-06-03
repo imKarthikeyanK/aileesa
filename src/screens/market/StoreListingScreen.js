@@ -850,7 +850,15 @@ export default function StoreListingScreen({ navigation }) {
       {/* ━━━ Cart floating card — sits above bottom tab bar ━━━━━━━━━━━━━━━━━━━ */}
       <CartFloatingCard
         bottomInset={TAB_BAR_H + insets.bottom}
-        onPress={() => navigation.navigate('Cart')}
+        onPress={() => {
+          const cartTotal = items.reduce((sum, i) => sum + (i.price * i.quantity), 0);
+          Analytics.track('view_cart_cta_clicked', {
+            source: 'store_list_page',
+            item_count: totalCartItems,
+            grand_total: cartTotal,
+          });
+          navigation.navigate('Cart');
+        }}
       />
 
       {/* ━━━ Toast — serviceability / error messages ━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
@@ -923,6 +931,12 @@ export default function StoreListingScreen({ navigation }) {
                 activeOpacity={0.7}
                 onPress={() => {
                   if (totalCartItems > 0) {
+                    const cartTotal = items.reduce((sum, i) => sum + (i.price * i.quantity), 0);
+                    Analytics.track('view_cart_cta_clicked', {
+                      source: 'store_list_page',
+                      item_count: totalCartItems,
+                      grand_total: cartTotal,
+                    });
                     navigation.navigate('Cart');
                   } else {
                     setToastMsg('Your cart is empty');

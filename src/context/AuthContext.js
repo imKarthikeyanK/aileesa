@@ -83,6 +83,7 @@ export function AuthProvider({ children }) {
   // ── Keep request headers in sync with auth state ──────────────────────────
   useEffect(() => {
     setAuthState({ uid: user?.id ?? null, loggedIn: !!user });
+    Analytics.setUserId(user?.id ?? null);
   }, [user]);
 
   // ── Schedule proactive token refresh ──────────────────────────────────────

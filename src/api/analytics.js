@@ -52,14 +52,65 @@
  *   serviceability_failed  { reason }
  */
 
+import { Platform } from 'react-native';
 import PostHogProvider from './analyticsProviders/posthog';
 
 // ─── Active provider ───────────────────────────────────────────────────────────
 // Swap this import to change the analytics backend. Contract must be satisfied.
 const ACTIVE_PROVIDER = PostHogProvider;
 
+// ─── Global event params (always attached to track/screen events) ───────────
+const _globalParams = {
+  user_id: null,
+  platform: Platform.OS ?? null,
+  traffic_source: null,
+  campaign_name: null,
+};
+
+// Best-effort attribution capture for web (UTM/deep-link style query params).
+if (Platform.OS === 'web' && typeof globalThis?.location?.search === 'string') {
+  try {
+    const q = new URLSearchParams(globalThis.location.search);
+    _globalParams.traffic_source = q.get('traffic_source') ?? q.get('utm_source') ?? null;
+    _globalParams.campaign_name = q.get('campaign_name') ?? q.get('utm_campaign') ?? null;
+  } catch {
+    // No-op; defaults stay null.
+  }
+}
+
+function withGlobalParams(properties) {
+  return {
+    user_id: _globalParams.user_id ?? null,
+    platform: _globalParams.platform ?? null,
+    traffic_source: _globalParams.traffic_source ?? null,
+    campaign_name: _globalParams.campaign_name ?? null,
+    ...(properties ?? {}),
+  };
+}
+
 // ─── Public facade ─────────────────────────────────────────────────────────────
 export const Analytics = {
+  /** Update global analytics params (null when absent). */
+  setGlobalParams(params = {}) {
+    if (Object.prototype.hasOwnProperty.call(params, 'user_id')) {
+      _globalParams.user_id = params.user_id ?? null;
+    }
+    if (Object.prototype.hasOwnProperty.call(params, 'platform')) {
+      _globalParams.platform = params.platform ?? null;
+    }
+    if (Object.prototype.hasOwnProperty.call(params, 'traffic_source')) {
+      _globalParams.traffic_source = params.traffic_source ?? null;
+    }
+    if (Object.prototype.hasOwnProperty.call(params, 'campaign_name')) {
+      _globalParams.campaign_name = params.campaign_name ?? null;
+    }
+  },
+
+  /** Convenience setter for current authenticated user id. */
+  setUserId(userId) {
+    _globalParams.user_id = userId ?? null;
+  },
+
   /**
    * Track a named event with optional properties.
    * @param {string} event
@@ -67,7 +118,7 @@ export const Analytics = {
    */
   track(event, properties) {
     try {
-      ACTIVE_PROVIDER.track(event, properties);
+      ACTIVE_PROVIDER.track(event, withGlobalParams(properties));
     } catch {
       // Analytics must never crash the app.
     }
@@ -81,6 +132,7 @@ export const Analytics = {
    */
   identify(userId, traits) {
     try {
+      _globalParams.user_id = userId ?? null;
       ACTIVE_PROVIDER.identify(userId, traits);
     } catch {
       // Analytics must never crash the app.
@@ -92,6 +144,7 @@ export const Analytics = {
    */
   reset() {
     try {
+      _globalParams.user_id = null;
       ACTIVE_PROVIDER.reset();
     } catch {
       // Analytics must never crash the app.
@@ -105,7 +158,7 @@ export const Analytics = {
    */
   screen(name, properties) {
     try {
-      ACTIVE_PROVIDER.screen(name, properties);
+      ACTIVE_PROVIDER.screen(name, withGlobalParams(properties));
     } catch {
       // Analytics must never crash the app.
     }

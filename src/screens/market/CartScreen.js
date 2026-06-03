@@ -501,6 +501,18 @@ export default function CartScreen({ navigation }) {
   const toMinimum      = effMinOrder  > 0     ? Math.max(0, effMinOrder  - subtotal) : 0;
 
   const handlePlaceOrder = async () => {
+    Analytics.track('place_order_cta_clicked', {
+      store_id:       items[0]?.storeId ?? null,
+      item_count:     items.length,
+      sub_total:      subtotal,
+      delivery_fee:   delivery,
+      platform_fee:   platform,
+      grand_total:    grandTotal,
+      payment_method: 'COD',
+      auth_state:     isAuthenticated ? 'logged_in' : 'guest',
+      has_address:    !!selectedAddress,
+    });
+
     if (!isAuthenticated) {
       Analytics.track('checkout_initiated', {
         store_id:   items[0]?.storeId,
