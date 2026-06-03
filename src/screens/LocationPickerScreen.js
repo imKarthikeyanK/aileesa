@@ -41,6 +41,7 @@ import { useTabBar } from '../context/TabBarContext';
 import { useAddress } from '../context/AddressContext';
 import { useAuth } from '../context/AuthContext';
 import { AddressAPI } from '../api/addressApi';
+import AuthSheet from '../components/auth/AuthSheet';
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 
@@ -97,7 +98,7 @@ function _distLabel(lat1, lng1, lat2, lng2) {
 export default function LocationPickerScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
   const { coords } = useLocation();
-  const { isAuthenticated, getAccessToken } = useAuth();
+  const { isAuthenticated, user, getAccessToken } = useAuth();
   const {
     addresses,
     isLoading: addressesLoading,
@@ -137,14 +138,15 @@ export default function LocationPickerScreen({ route, navigation }) {
 
   const handleUseCurrentLocation = useCallback(() => {
     if (!coords) return;
+    if (!isAuthenticated) { setAuthSheetVisible(true); return; }
     // Clear any previous form state and open form pre-centred on current coords.
     setHouseNo(''); setLandmark(''); setCity(''); setStateVal(''); setPincode('');
-    setReceiverName(''); setReceiverPhone(''); setErrors({}); setSaveErr('');
+    setErrors({}); setSaveErr('');
     setAddressType('home'); setCustomName(''); setSaved(false);
     setEditingAddress(null);
     setRegion(r => ({ ...r, latitude: coords.latitude, longitude: coords.longitude }));
     setMode('form');
-  }, [coords]);
+  }, [coords, isAuthenticated]);
 
   const handlePickAddress = useCallback((addr) => {
     selectAddress(addr);
@@ -167,8 +169,6 @@ export default function LocationPickerScreen({ route, navigation }) {
       setAddressType('other');
       setCustomName(addr.label ?? '');
     }
-    setReceiverName(addr.receiver_name ?? '');
-    setReceiverPhone(addr.receiver_phone ?? '');
     setErrors({}); setSaveErr(''); setSaved(false);
     setMode('form');
   }, []);
@@ -193,8 +193,7 @@ export default function LocationPickerScreen({ route, navigation }) {
   const [pincode,       setPincode]       = useState('');
   const [addressType,   setAddressType]   = useState('home');
   const [customName,    setCustomName]    = useState('');
-  const [receiverName,  setReceiverName]  = useState('');
-  const [receiverPhone, setReceiverPhone] = useState('');
+  const [authSheetVisible, setAuthSheetVisible] = useState(false);
 
   const [errors,  setErrors]  = useState({});
   const [saving,  setSaving]  = useState(false);
@@ -216,8 +215,6 @@ export default function LocationPickerScreen({ route, navigation }) {
         setCity(addr.city ?? '');
         setStateVal(addr.state ?? '');
         setPincode(addr.pincode ?? '');
-        setReceiverName(addr.receiver_name ?? '');
-        setReceiverPhone(addr.receiver_phone ?? '');
         const typeMatch = ADDRESS_TYPES.find(t => t.label === addr.label);
         if (typeMatch) {
           setAddressType(typeMatch.id);
@@ -281,9 +278,7 @@ export default function LocationPickerScreen({ route, navigation }) {
     if (!city.trim())                                  e.city          = 'Required';
     if (!stateVal.trim())                              e.stateVal      = 'Required';
     if (!pincode.trim())                               e.pincode       = 'Required';
-    if (addressType === 'other' && !customName.trim()) e.customName    = 'Required';
-    if (!receiverName.trim())                          e.receiverName  = 'Required';
-    if (!/^[6-9]\d{9}$/.test(receiverPhone.trim()))   e.receiverPhone = 'Enter a valid 10-digit mobile number';
+    if (addressType === 'other' && !customName.trim()) e.customName = 'Required';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -296,9 +291,7 @@ export default function LocationPickerScreen({ route, navigation }) {
     // ── Edit mode: only label + receiver fields can be updated via API ────────
     if (editingAddress) {
       const e = {};
-      if (addressType === 'other' && !customName.trim()) e.customName    = 'Required';
-      if (!receiverName.trim())                          e.receiverName  = 'Required';
-      if (!/^[6-9]\d{9}$/.test(receiverPhone.trim()))   e.receiverPhone = 'Enter a valid 10-digit mobile number';
+      if (addressType === 'other' && !customName.trim()) e.customName = 'Required';
       setErrors(e);
       if (Object.keys(e).length > 0) return;
 
@@ -311,7 +304,7 @@ export default function LocationPickerScreen({ route, navigation }) {
         const token = await getAccessToken();
         await AddressAPI.updateUserAddress(
           editingAddress.id,
-          { label, receiver_name: receiverName.trim(), receiver_phone: receiverPhone.trim() },
+          { label, receiver_name: user?.name ?? '', receiver_phone: user?.phone ?? '' },
           { accessToken: token },
         );
         await refreshAddresses();
@@ -344,8 +337,8 @@ export default function LocationPickerScreen({ route, navigation }) {
         state:          stateVal.trim(),
         pincode:        pincode.trim(),
         label,
-        receiver_name:  receiverName.trim(),
-        receiver_phone: receiverPhone.trim(),
+        receiver_name:  user?.name ?? '',
+        receiver_phone: user?.phone ?? '',
       });
       setSaved(true);
       setTimeout(() => navigation.goBack(), 700);
@@ -353,6 +346,27 @@ export default function LocationPickerScreen({ route, navigation }) {
       setSaveErr('Failed to save address. Please try again.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // ── Auth gate ─────────────────────────────────────────────────────────────────
+
+  // Show auth sheet whenever the user reaches form mode without being logged in
+  useEffect(() => {
+    if (mode === 'form' && !isAuthenticated) {
+      setAuthSheetVisible(true);
+    }
+  }, [mode, isAuthenticated]);
+
+  const handleAuthSheetClose = () => {
+    setAuthSheetVisible(false);
+    if (!isAuthenticated) {
+      // Closed without logging in — retreat to list or go back
+      if (addresses.length > 0) {
+        setMode('list');
+      } else {
+        navigation.goBack();
+      }
     }
   };
 
@@ -487,7 +501,10 @@ export default function LocationPickerScreen({ route, navigation }) {
           {/* ── Add new address ──────────────────────────────────── */}
           <TouchableOpacity
             style={styles.addNewBtn}
-            onPress={() => { setEditingAddress(null); setMode('form'); }}
+            onPress={() => {
+              if (!isAuthenticated) { setAuthSheetVisible(true); return; }
+              setEditingAddress(null); setMode('form');
+            }}
             activeOpacity={0.8}
           >
             <View style={styles.addNewIcon}>
@@ -631,26 +648,6 @@ export default function LocationPickerScreen({ route, navigation }) {
               </>
             )}
 
-            {/* Receiver fields — shown in both create and edit */}
-            <Field
-              label="Receiver name"
-              required
-              placeholder="Full name"
-              value={receiverName}
-              onChangeText={setReceiverName}
-              error={errors.receiverName}
-            />
-            <Field
-              label="Receiver phone"
-              required
-              placeholder="10-digit mobile number"
-              value={receiverPhone}
-              onChangeText={setReceiverPhone}
-              keyboardType="phone-pad"
-              maxLength={10}
-              error={errors.receiverPhone}
-            />
-
             {/* Address type chips */}
             <View style={styles.fieldGroup}>
               <Text style={styles.fieldLabel}>Save address as</Text>
@@ -714,6 +711,11 @@ export default function LocationPickerScreen({ route, navigation }) {
           </View>
         </ScrollView>
       )}
+      <AuthSheet
+        visible={authSheetVisible}
+        onClose={handleAuthSheetClose}
+        source="address_form"
+      />
     </View>
   );
 }
