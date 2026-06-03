@@ -36,6 +36,7 @@ import { useLocation } from '../../context/LocationContext';
 import AuthSheet from '../../components/auth/AuthSheet';
 import { OrdersAPI } from '../../api/ordersApi';
 import { Analytics } from '../../api/analytics';
+import { getStoreDetail } from '../../api/storeApi';
 
 // ─── Design Tokens ─────────────────────────────────────────────────────────────
 
@@ -365,6 +366,8 @@ export default function CartScreen({ navigation }) {
   const [addrSheet, setAddrSheet]     = useState(false);
   const [isCartGateLoading, setIsCartGateLoading] = useState(true);
   const [showGpsFetchMessage, setShowGpsFetchMessage] = useState(false);
+  const [isStoreClosed, setIsStoreClosed] = useState(false);
+  const [closedStoreName, setClosedStoreName] = useState('');
   const pendingOrder     = useRef(false); // true when user hit Place Order before login
   const pendingAddrSheet = useRef(false); // true when navigated to LocationPicker to add address
   const gpsMsgTimerRef   = useRef(null);
@@ -373,6 +376,51 @@ export default function CartScreen({ navigation }) {
     if (selectedAddress?.lat == null || selectedAddress?.lng == null) return null;
     return { latitude: selectedAddress.lat, longitude: selectedAddress.lng };
   }, [isAuthenticated, selectedAddress?.lat, selectedAddress?.lng]);
+
+  const refreshStoreOpenState = useCallback(async () => {
+    if (items.length === 0) {
+      setIsStoreClosed(false);
+      setClosedStoreName('');
+      return;
+    }
+
+    const uniqueStores = Array.from(new Set(items.map(i => i.storeId).filter(Boolean)));
+    if (uniqueStores.length === 0) {
+      setIsStoreClosed(false);
+      setClosedStoreName('');
+      return;
+    }
+
+    const latitude = cartFlashCoords?.latitude ?? coords?.latitude ?? null;
+    const longitude = cartFlashCoords?.longitude ?? coords?.longitude ?? null;
+
+    try {
+      const checks = await Promise.all(uniqueStores.map(async (storeId) => {
+        const res = await getStoreDetail(storeId, { latitude, longitude });
+        const store = res?.data ?? res;
+        return {
+          storeId,
+          isOpen: (store?.is_open ?? store?.isOpen) !== false,
+          name: store?.name,
+        };
+      }));
+
+      const closed = checks.find(s => !s.isOpen);
+      if (closed) {
+        setIsStoreClosed(true);
+        setClosedStoreName(
+          closed.name ?? items.find(i => i.storeId === closed.storeId)?.storeName ?? 'This store',
+        );
+      } else {
+        setIsStoreClosed(false);
+        setClosedStoreName('');
+      }
+    } catch {
+      // Fail open on lookup failure; backend place-order validation still applies.
+      setIsStoreClosed(false);
+      setClosedStoreName('');
+    }
+  }, [items, cartFlashCoords?.latitude, cartFlashCoords?.longitude, coords?.latitude, coords?.longitude]);
 
   // Auto-trigger place order once user logs in from the auth sheet
   useEffect(() => {
@@ -398,6 +446,7 @@ export default function CartScreen({ navigation }) {
     (async () => {
       try {
         await refreshFlashCritical({ reason: 'cart_open', coords: cartFlashCoords });
+        await refreshStoreOpenState();
       } finally {
         if (gpsMsgTimerRef.current) {
           clearTimeout(gpsMsgTimerRef.current);
@@ -435,7 +484,11 @@ export default function CartScreen({ navigation }) {
       }
       showTabBar();
     };
-  }, [hideTabBar, showTabBar, refreshFlashCritical, cartFlashCoords]));
+  }, [hideTabBar, showTabBar, refreshFlashCritical, cartFlashCoords, refreshStoreOpenState]));
+
+  useEffect(() => {
+    refreshStoreOpenState();
+  }, [refreshStoreOpenState]);
 
   // Re-hide the tab bar whenever the auth sheet is dismissed.
   // On web, showing a Modal can trigger a navigation blur/focus cycle which
@@ -499,8 +552,13 @@ export default function CartScreen({ navigation }) {
   // Progress bars
   const toFreeDelivery = effFreeAbove != null ? Math.max(0, effFreeAbove - subtotal) : 0;
   const toMinimum      = effMinOrder  > 0     ? Math.max(0, effMinOrder  - subtotal) : 0;
+  const placeOrderDisabled = placing || belowMinimum || isStoreClosed;
 
   const handlePlaceOrder = async () => {
+    if (isStoreClosed) {
+      return;
+    }
+
     Analytics.track('place_order_cta_clicked', {
       store_id:       items[0]?.storeId ?? null,
       item_count:     items.length,
@@ -807,6 +865,17 @@ export default function CartScreen({ navigation }) {
           </View>
         )}
 
+        {isStoreClosed ? (
+          <View style={styles.nudgeCard}>
+            <View style={styles.nudgeRow}>
+              <Ionicons name="time-outline" size={15} color="#C62828" />
+              <Text style={styles.nudgeTextDanger}>
+                {closedStoreName || 'This store'} is currently closed. Orders are temporarily unavailable.
+              </Text>
+            </View>
+          </View>
+        ) : null}
+
         {/* ── Order summary ──────────────────────────────────────────────── */}
         <View style={styles.summaryCard}>
           <Text style={styles.summaryTitle}>Order Summary</Text>
@@ -852,9 +921,9 @@ export default function CartScreen({ navigation }) {
         ) : null}
         <Animated.View style={{ transform: [{ scale: ctaPulse }] }}>
         <TouchableOpacity
-          style={[styles.placeOrderBtn, (placing || belowMinimum) && styles.placeOrderBtnBusy]}
+          style={[styles.placeOrderBtn, placeOrderDisabled && styles.placeOrderBtnBusy]}
           onPress={handlePlaceOrder}
-          disabled={placing || belowMinimum}
+          disabled={placeOrderDisabled}
           activeOpacity={0.88}
         >
           <LinearGradient
@@ -867,7 +936,7 @@ export default function CartScreen({ navigation }) {
               <ActivityIndicator color={WHITE} size="small" />
             ) : (
               <>
-                <Text style={styles.placeOrderLabel}>Place Order</Text>
+                <Text style={styles.placeOrderLabel}>{isStoreClosed ? 'Store Closed' : 'Place Order'}</Text>
                 <View style={styles.placeOrderAmountBox}>
                   <Text style={styles.placeOrderAmount}>₹{grandTotal}</Text>
                   <Ionicons name="arrow-forward" size={16} color={WHITE} style={{ marginLeft: 4 }} />
