@@ -250,10 +250,42 @@ export function AuthProvider({ children }) {
     }
   }, [user]);
 
-  /** Returns the current access token (for use in API calls) */
+  /**
+   * Returns a valid access token for API calls.
+   * If the stored token is expired or within 60 s of expiry, a silent refresh
+   * is attempted first. This handles backgrounded apps where the proactive
+   * timer couldn't fire before the token expired.
+   */
   const getAccessToken = useCallback(async () => {
-    return TokenStorage.get(KEYS.ACCESS);
-  }, []);
+    const at = await TokenStorage.get(KEYS.ACCESS);
+    if (!at) return null;
+
+    // Try to decode expiry from a real JWT (3-part, base64url payload with `exp`)
+    try {
+      const b64     = at.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+      const { exp } = JSON.parse(atob(b64));
+      if (exp && (exp - Math.floor(Date.now() / 1000)) < 60) {
+        // Token expired or expires within 60 s — refresh before returning
+        const rt = refreshTokenRef.current ?? await TokenStorage.get(KEYS.REFRESH);
+        if (rt) {
+          const { accessToken: newAt, refreshToken: newRt, expiresInSec } =
+            await AuthAPI.refreshAccessToken(rt);
+          const writes = [TokenStorage.set(KEYS.ACCESS, newAt)];
+          if (newRt) {
+            refreshTokenRef.current = newRt;
+            writes.push(TokenStorage.set(KEYS.REFRESH, newRt));
+          }
+          await Promise.all(writes);
+          scheduleRefresh(expiresInSec);
+          return newAt;
+        }
+      }
+    } catch {
+      // Opaque / mock token — fall through and return as-is
+    }
+
+    return at;
+  }, [scheduleRefresh]);
 
   const value = {
     user,
