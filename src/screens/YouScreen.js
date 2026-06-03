@@ -309,6 +309,7 @@ export default function YouScreen({ navigation }) {
       <AuthSheet
         visible={authSheetVisible}
         onClose={() => setAuthSheetVisible(false)}
+        source="you_tab"
       />
       <EditNameModal
         visible={editNameVisible}

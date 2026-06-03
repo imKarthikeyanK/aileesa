@@ -105,3 +105,17 @@ export const IS_PROD = ENV.name === 'prod';
  * Change only this one line to flip the entire app.
  */
 export const USE_MOCK = false;
+
+// ─── Analytics ────────────────────────────────────────────────────────────────
+//
+// Set EXPO_PUBLIC_POSTHOG_KEY in your EAS build profile or .env file:
+//   .env.development: EXPO_PUBLIC_POSTHOG_KEY=phc_xxxx
+//   eas.json:         "env": { "EXPO_PUBLIC_POSTHOG_KEY": "phc_xxxx" }
+//
+// Leave blank to disable event tracking in local dev.
+export const POSTHOG_API_KEY = process.env.EXPO_PUBLIC_POSTHOG_KEY ?? '';
+
+// Default to PostHog Cloud. Override to self-host:
+//   EXPO_PUBLIC_POSTHOG_HOST=https://eu.posthog.com  (EU residency)
+//   EXPO_PUBLIC_POSTHOG_HOST=https://your-posthog.internal
+export const POSTHOG_HOST = process.env.EXPO_PUBLIC_POSTHOG_HOST ?? 'https://us.i.posthog.com';

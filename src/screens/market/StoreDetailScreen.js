@@ -37,6 +37,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { getStoreDetail } from '../../api/storeApi';
 import { getInventories }  from '../../api/inventoryApi';
+import { Analytics }       from '../../api/analytics';
 import { useCart }          from '../../context/CartContext';
 import { useLocation }      from '../../context/LocationContext';
 import { useAddress }       from '../../context/AddressContext';
@@ -129,6 +130,14 @@ function InventoryCard({ item, storeId, storeName, businessId, storeClosed, deli
   const badgeColor = isNew ? SUCCESS    : ACCENT;
 
   const handleAdd = useCallback(() => {
+    Analytics.track('item_added', {
+      item_id:      item.id,
+      item_name:    item.name,
+      store_id:     storeId,
+      price:        item.price,
+      quantity:     quantity + 1,
+      is_multi_add: !!item.multi_add,
+    });
     addItem({
       id:                    item.id,
       variant_id:            item.variant_id,
@@ -152,8 +161,9 @@ function InventoryCard({ item, storeId, storeName, businessId, storeClosed, deli
   }, [item, storeId, storeName, businessId, deliveryTime, addItem]);
 
   const handleRemove = useCallback(() => {
+    Analytics.track('item_removed', { item_id: item.id, store_id: storeId, quantity: quantity - 1 });
     removeItem(item.id, storeId);
-  }, [item.id, storeId, removeItem]);
+  }, [item.id, storeId, removeItem, quantity]);
 
   // When the store is closed every card is treated as non-interactive
   const cardInactive = !item.active || storeClosed;
@@ -317,7 +327,19 @@ export default function StoreDetailScreen({ route, navigation }) {
   // ── Store detail (enriched by API) ────────────────────────────────────────
   const [storeDetail, setStoreDetail] = useState(routeStore);
 
-  // ── Inventory ──────────────────────────────────────────────────────────────
+  // ── Track screen view on first load ────────────────────────────────────────
+  const trackedRef = useRef(false);
+  useEffect(() => {
+    if (!trackedRef.current) {
+      trackedRef.current = true;
+      Analytics.track('store_detail_viewed', {
+        store_id:   routeStore.id,
+        store_name: routeStore.name ?? '',
+        is_open:    routeStore.is_open ?? true,
+      });
+    }
+  }, []);
+
   const [sections,    setSections]    = useState([]);
   const [invLoading,  setInvLoading]  = useState(false);
   const [invHasNext,  setInvHasNext]  = useState(false);

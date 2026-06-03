@@ -35,6 +35,7 @@ import { useAddress } from '../../context/AddressContext';
 import { useLocation } from '../../context/LocationContext';
 import AuthSheet from '../../components/auth/AuthSheet';
 import { OrdersAPI } from '../../api/ordersApi';
+import { Analytics } from '../../api/analytics';
 
 // ─── Design Tokens ─────────────────────────────────────────────────────────────
 
@@ -405,6 +406,18 @@ export default function CartScreen({ navigation }) {
         if (isActive) {
           setShowGpsFetchMessage(false);
           setIsCartGateLoading(false);
+
+          // Fire cart_viewed once flash data is fresh
+          if (items.length > 0) {
+            const _subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
+            Analytics.track('cart_viewed', {
+              store_id:        items[0]?.storeId,
+              item_count:      items.length,
+              subtotal:        _subtotal,
+              grand_total:     _subtotal + (serviceability?.delivery_fee ?? 0) + (serviceability?.platform_fee ?? 0),
+              is_free_delivery: serviceability?.free_delivery_above == null || _subtotal >= (serviceability?.free_delivery_above ?? 0),
+            });
+          }
         }
       }
     })();
@@ -489,14 +502,27 @@ export default function CartScreen({ navigation }) {
 
   const handlePlaceOrder = async () => {
     if (!isAuthenticated) {
+      Analytics.track('checkout_initiated', {
+        store_id:   items[0]?.storeId,
+        item_count: items.length,
+        grand_total: grandTotal,
+        auth_state: 'guest',
+      });
       pendingOrder.current = true;
       setAuthSheet(true);
       return;
     }
     if (!selectedAddress) {
+      Analytics.track('address_picker_opened', { source: 'checkout' });
       setAddrSheet(true);
       return;
     }
+    Analytics.track('checkout_initiated', {
+      store_id:   items[0]?.storeId,
+      item_count: items.length,
+      grand_total: grandTotal,
+      auth_state: 'logged_in',
+    });
     setPlacing(true);
     try {
       const token = await getAccessToken();
@@ -530,8 +556,21 @@ export default function CartScreen({ navigation }) {
       clearCart();
       const orderId   = order?.data?.id ?? order?.id;
       const displayId = order?.data?.booking_id ?? order?.booking_id;
+      Analytics.track('order_placed', {
+        order_id:       orderId,
+        display_id:     displayId,
+        store_id:       firstItem.storeId,
+        item_count:     items.length,
+        grand_total:    grandTotal,
+        payment_method: 'COD',
+      });
       navigation.replace('OrderSuccess', { bookingId: orderId, displayId });
     } catch (e) {
+      Analytics.track('order_place_failed', {
+        store_id:    items[0]?.storeId,
+        error_code:  e?.code ?? 'UNKNOWN',
+        grand_total: grandTotal,
+      });
       // TODO: surface error toast
     } finally {
       setPlacing(false);
@@ -828,7 +867,7 @@ export default function CartScreen({ navigation }) {
         </Animated.View>
       </View>
     </View>
-    <AuthSheet visible={authSheet} onClose={() => setAuthSheet(false)} />
+    <AuthSheet visible={authSheet} onClose={() => setAuthSheet(false)} source="cart_checkout" />
     <AddressPickerSheet
       visible={addrSheet}
       onClose={() => setAddrSheet(false)}

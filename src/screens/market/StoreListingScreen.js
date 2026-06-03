@@ -36,6 +36,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { IS_DEV } from '../../api/env';
 import { getStores } from '../../api/storeApi';
+import { Analytics } from '../../api/analytics';
 import { useLocation } from '../../context/LocationContext';
 import { useTabBar, TAB_BAR_H } from '../../context/TabBarContext';
 import { useCart } from '../../context/CartContext';
@@ -503,6 +504,10 @@ export default function StoreListingScreen({ navigation }) {
       hasNextRef.current = pagination.has_next ?? false;
       pageRef.current    = pageNum;
       setError(null);
+
+      if (replace) {
+        Analytics.track('store_listing_viewed', { store_count: data.length });
+      }
     } catch (err) {
       setError(err.message || 'Failed to load stores. Please try again.');
     } finally {
@@ -747,7 +752,15 @@ export default function StoreListingScreen({ navigation }) {
         renderItem={({ item }) => (
           <StoreCard
             store={item}
-            onPress={() => navigation.navigate('StoreDetail', { store: item })}
+            onPress={() => {
+              Analytics.track('store_card_tapped', {
+                store_id:      item.id,
+                store_name:    item.name,
+                list_position: stores.indexOf(item),
+                is_open:       item.is_open ?? true,
+              });
+              navigation.navigate('StoreDetail', { store: item });
+            }}
           />
         )}
         ListHeaderComponent={renderListHeader}
@@ -844,7 +857,7 @@ export default function StoreListingScreen({ navigation }) {
       <Toast message={toastMsg} onDismiss={() => setToastMsg('')} />
 
       {/* ━━━ Auth sheet — opened from non-serviceable card login CTA ━━━━━━━━━━ */}
-      <AuthSheet visible={authSheetVisible} onClose={() => setAuthSheetVisible(false)} />
+      <AuthSheet visible={authSheetVisible} onClose={() => setAuthSheetVisible(false)} source="store_listing" />
 
       {/* ━━━ Dev debug panel — flash checkpoint visibility ━━━━━━━━━━━━━━━━━━━ */}
       {IS_DEV && (

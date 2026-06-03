@@ -41,7 +41,9 @@ import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import { AuthAPI } from '../api/authApi';
+import { OTP_CHANNEL } from '../api/authApi';
 import { setAuthState } from '../api/requestHeaders';
+import { Analytics } from '../api/analytics';
 
 // ─── Persistent token storage ───────────────────────────────────────────────
 // Web keeps using browser storage; native uses encrypted SecureStore.
@@ -182,7 +184,9 @@ export function AuthProvider({ children }) {
 
   /** Step 1: request OTP to be sent to a WhatsApp number */
   const sendOtp = useCallback(async (phone) => {
-    return AuthAPI.sendOtp(phone);
+    const result = await AuthAPI.sendOtp(phone);
+    Analytics.track('otp_requested', { channel: OTP_CHANNEL });
+    return result;
   }, []);
 
   /**
@@ -208,6 +212,10 @@ export function AuthProvider({ children }) {
 
     setUser(resolvedUser);
     scheduleRefresh(expiresInSec);
+
+    const isNewUser = !apiUser.name;
+    Analytics.identify(resolvedUser.id, { name: resolvedUser.name, phone: resolvedUser.phone });
+    Analytics.track('otp_verified', { is_new_user: isNewUser });
   }, [scheduleRefresh]);
 
   /** Revoke refresh token on backend, then clear local session */
@@ -219,6 +227,8 @@ export function AuthProvider({ children }) {
     } catch {
       // Fire-and-forget — still clear locally even if backend call fails
     } finally {
+      Analytics.track('logout');
+      Analytics.reset();
       await _clearSession();
     }
   }, [_clearSession]);

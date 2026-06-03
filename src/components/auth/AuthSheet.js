@@ -33,6 +33,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { IS_MOCK, OTP_CHANNEL, OTP_LENGTH } from '../../api/authApi';
+import { Analytics } from '../../api/analytics';
 
 // ─── Channel flag ─────────────────────────────────────────────────────────────────────
 const IS_SMS = OTP_CHANNEL === 'SMS';
@@ -222,6 +223,7 @@ function OtpStep({ requestId, phone, devOtp, onSuccess, onBack }) {
       await verifyOtp(currentRequestId, otp);
       onSuccess();
     } catch (e) {
+      Analytics.track('otp_failed', { error_code: e.code ?? 'UNKNOWN', channel: OTP_CHANNEL });
       setError(e.message || 'Verification failed. Please try again.');
       setValue('');
       setTimeout(() => hiddenRef.current?.focus(), 100);
@@ -371,7 +373,7 @@ function OtpStep({ requestId, phone, devOtp, onSuccess, onBack }) {
 }
 
 // ─── AuthSheet — orchestrates both steps ──────────────────────────────────────
-export default function AuthSheet({ visible, onClose }) {
+export default function AuthSheet({ visible, onClose, source }) {
   const insets    = useSafeAreaInsets();
   const slideY    = useRef(new Animated.Value(700)).current;
   const bgOpacity = useRef(new Animated.Value(0)).current;
@@ -415,6 +417,7 @@ export default function AuthSheet({ visible, onClose }) {
   // ── Sheet slide-in / slide-out ─────────────────────────────────────────────
   useEffect(() => {
     if (visible) {
+      Analytics.track('auth_sheet_opened', { source: source ?? 'unknown' });
       // Reset to off-screen before animating in. If a previous close animation
       // was interrupted the value may be at a stale intermediate position,
       // which causes the sheet to "stick" instead of sliding up from the bottom.

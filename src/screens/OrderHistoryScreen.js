@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { OrdersAPI } from '../api/ordersApi';
 import { useAuth } from '../context/AuthContext';
 import AuthSheet from '../components/auth/AuthSheet';
+import { Analytics } from '../api/analytics';
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 const BG        = '#F5F6FA';
@@ -101,7 +102,11 @@ export default function OrderHistoryScreen({ navigation }) {
       const token = await getAccessToken();
       const res = await OrdersAPI.getOrders({ accessToken: token });
       // Real API returns { status, data: [...orders], pagination: {...} }
-      setOrders(res?.data ?? res);
+      const data = res?.data ?? res;
+      setOrders(data);
+      if (!silent) {
+        Analytics.track('order_history_viewed', { order_count: Array.isArray(data) ? data.length : 0 });
+      }
     } catch (e) {
       setError('Could not load orders. Please try again.');
     } finally {
@@ -195,7 +200,7 @@ export default function OrderHistoryScreen({ navigation }) {
           )}
         />
       )}
-      <AuthSheet visible={authSheetVisible} onClose={() => setAuthSheetVisible(false)} />
+      <AuthSheet visible={authSheetVisible} onClose={() => setAuthSheetVisible(false)} source="order_history" />
     </View>
   );
 }

@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { Analytics } from '../../api/analytics';
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 const BG      = '#F5F6FA';
@@ -78,6 +79,10 @@ function CountdownBadge({ seconds }) {
 export default function OrderSuccessScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
   const { bookingId, displayId } = route.params ?? {};
+
+  useEffect(() => {
+    Analytics.track('order_success_viewed', { order_id: bookingId, display_id: displayId });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [countdown, setCountdown] = useState(Math.round(AUTO_NAV_DELAY / 1000));
 

@@ -210,7 +210,7 @@ export default function BookingDetailScreen({ route, navigation }) {
             <Text style={styles.retryBtnText}>Login</Text>
           </TouchableOpacity>
         </View>
-        <AuthSheet visible={authSheetVisible} onClose={() => setAuthSheetVisible(false)} />
+        <AuthSheet visible={authSheetVisible} onClose={() => setAuthSheetVisible(false)} source="booking_detail" />
       </View>
     );
   }
