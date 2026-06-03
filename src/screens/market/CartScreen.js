@@ -919,32 +919,52 @@ export default function CartScreen({ navigation }) {
             </Text>
           </View>
         ) : null}
-        <Animated.View style={{ transform: [{ scale: ctaPulse }] }}>
-        <TouchableOpacity
-          style={[styles.placeOrderBtn, placeOrderDisabled && styles.placeOrderBtnBusy]}
-          onPress={handlePlaceOrder}
-          disabled={placeOrderDisabled}
-          activeOpacity={0.88}
-        >
-          <LinearGradient
-            colors={['#6200EE', '#9C4DCC']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.placeOrderGradient}
+
+        {/* ── Payment trust disclaimer ──────────────────────────────────── */}
+        <View style={styles.paymentDisclaimerCard}>
+          <Ionicons name="lock-closed" size={14} color="#065F46" />
+          <Text style={styles.paymentDisclaimerText}>
+            {'Your Trust First: Because we just launched in Hosur, we do not take online payments. You only pay after your items arrive at your doorstep via Cash or UPI!'}
+          </Text>
+        </View>
+
+        {/* ── 1:7 Split CTA row ─────────────────────────────────────────── */}
+        <Animated.View style={[styles.ctaSplitRow, { transform: [{ scale: ctaPulse }] }]}>
+          {/* COD badge — 1 part, unclickable */}
+          {/* <View style={styles.codBadge}>
+            <Ionicons name="cash-outline" size={15} color="#065F46" />
+            <Text style={styles.codBadgeText}>COD</Text>
+          </View> */}
+
+          {/* Place Order button — 7 parts */}
+          <TouchableOpacity
+            style={[styles.placeOrderBtn, placeOrderDisabled && styles.placeOrderBtnBusy]}
+            onPress={handlePlaceOrder}
+            disabled={placeOrderDisabled}
+            activeOpacity={0.88}
           >
-            {placing ? (
-              <ActivityIndicator color={WHITE} size="small" />
-            ) : (
-              <>
-                <Text style={styles.placeOrderLabel}>{isStoreClosed ? 'Store Closed' : 'Place Order'}</Text>
-                <View style={styles.placeOrderAmountBox}>
-                  <Text style={styles.placeOrderAmount}>₹{grandTotal}</Text>
-                  <Ionicons name="arrow-forward" size={16} color={WHITE} style={{ marginLeft: 4 }} />
-                </View>
-              </>
-            )}
-          </LinearGradient>
-        </TouchableOpacity>
+            <LinearGradient
+              colors={['#6200EE', '#9C4DCC']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.placeOrderGradient}
+            >
+              {placing ? (
+                <ActivityIndicator color={WHITE} size="small" />
+              ) : (
+                <>
+                  <Text style={styles.placeOrderLabel}>
+                    {isStoreClosed ? 'Store Closed' : 'Place Order'}
+                    {isStoreClosed ? '': <Text style={{ fontSize: 13, fontWeight: '600' }}> (Pay on Delivery)</Text>}
+                  </Text>
+                  <View style={styles.placeOrderAmountBox}>
+                    <Text style={styles.placeOrderAmount}>₹{grandTotal}</Text>
+                    <Ionicons name="arrow-forward" size={16} color={WHITE} style={{ marginLeft: 4 }} />
+                  </View>
+                </>
+              )}
+            </LinearGradient>
+          </TouchableOpacity>
         </Animated.View>
       </View>
     </View>
@@ -1476,7 +1496,53 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: TEXT_PRI,
   },
+  // ── Payment disclaimer ────────────────────────────────────────────────────
+  paymentDisclaimerCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 10,
+  },
+  paymentDisclaimerText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#065F46',
+    fontWeight: '500',
+    lineHeight: 17,
+  },
+
+  // ── COD badge + split CTA ──────────────────────────────────────────────────
+  ctaSplitRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: 8,
+  },
+  codBadge: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    // backgroundColor: '#D1FAE5',
+    borderWidth: 1,
+    borderColor: '#6EE7B7',
+    borderRadius: 14,
+    paddingHorizontal: 8,
+  },
+  codBadgeText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#065F46',
+    letterSpacing: 0.5,
+  },
+
   placeOrderBtn: {
+    flex: 7,
     borderRadius: 14,
     overflow: 'hidden',
     height: 58,
@@ -1501,12 +1567,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.15)',
     borderRadius: 10,
-    paddingHorizontal: 12,
+    paddingHorizontal: 8,
     paddingVertical: 6,
+    marginLeft: 4,
   },
   placeOrderAmount: {
     color: WHITE,
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: '800',
   },
 

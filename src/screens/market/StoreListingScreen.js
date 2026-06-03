@@ -25,6 +25,7 @@ import {
   Dimensions,
   FlatList,
   Image,
+  Linking,
   Platform,
   StatusBar,
   StyleSheet,
@@ -675,6 +676,27 @@ export default function StoreListingScreen({ navigation }) {
       return (
         <View style={styles.footerLoader}>
           <ActivityIndicator size="small" color={ACCENT} />
+        </View>
+      );
+    }
+    // End-of-list growth card — shown when all stores are loaded
+    if (!loading && !hasNextRef.current && stores.length > 0) {
+      return (  
+        <View style={styles.growthCard}>
+          <Text style={styles.growthCardEmoji}>🚀</Text>
+          <Text style={styles.growthCardText}>
+            {'Bringing more of Hosur online! Want your favorite neighborhood shop on Aileesa? Tell them about us, or if you\u2019re a business owner, '}
+            <Text
+              style={styles.growthCardLink}
+              onPress={() =>
+                Linking.openURL(
+                  'https://wa.me/917010471347?text=Hi%20Aileesa%2C%20I%20want%20to%20list%20my%20shop!',
+                )
+              }
+            >
+              Tap here to get onboarded digitally!
+            </Text>
+          </Text>
         </View>
       );
     }
@@ -1477,6 +1499,36 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: ACCENT,
+  },
+
+  // ── End-of-pagination growth card ──────────────────────────────────────────────
+  growthCard: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 8,
+    backgroundColor: '#F5F3FF',
+    borderWidth: 1,
+    borderColor: '#DDD6FE',
+    borderRadius: 14,
+    padding: 16,
+    alignItems: 'center',
+    gap: 10,
+  },
+  growthCardEmoji: {
+    fontSize: 18,
+    margin: -5,
+  },
+  growthCardText: {
+    fontSize: 13,
+    color: TEXT_PRI,
+    fontWeight: '500',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  growthCardLink: {
+    color: ACCENT,
+    fontWeight: '700',
+    textDecorationLine: 'underline',
   },
 
   // ── Location card (permission denied / non-serviceable) ────────────────────

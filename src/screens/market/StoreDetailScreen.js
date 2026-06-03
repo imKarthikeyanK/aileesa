@@ -718,7 +718,21 @@ export default function StoreDetailScreen({ route, navigation }) {
           </View>
         )}
 
-        {/* Sectioned inventory */}
+        {/* Uzhavar Santhai experiment disclaimer */}
+        {/uzhavar santhai|ulavar sandhai/i.test(storeDetail.name.toLowerCase()) && (
+          <View style={styles.uzhavarDisclaimer}>
+            <Text style={styles.uzhavarDisclaimerTitle}>🌾 Experiment Launch!</Text>
+            <Text style={styles.uzhavarDisclaimerBody}>
+              {'We procure your items freshly, directly from '}
+              <Text style={{ fontWeight: '700' }}>Uzhavar Santhai, Hosur</Text>
+              {' and deliver them to your doorstep.\n'}
+              <Text style={styles.uzhavarDisclaimerMuted}>
+                Please note: We are not official representatives of Uzhavar Santhai; this is a purely local launching experiment by independent developers to support the community. 🚀
+              </Text>
+            </Text>
+          </View>
+        )}
+
         {/* Closed store banner — sits between the info card and product list */}
         {isStoreClosed && (
           <View style={styles.storeClosedBanner}>
@@ -908,7 +922,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     marginTop: -CARD_OVERLAP,
     paddingHorizontal: 20,
-    paddingTop: 24,
+    paddingTop: 18,
     paddingBottom: 20,
     // subtle shadow on top edge
     shadowColor: '#000',
@@ -972,7 +986,7 @@ const styles = StyleSheet.create({
   infoDivider: {
     height: StyleSheet.hairlineWidth * 2,
     backgroundColor: BORDER,
-    marginVertical: 14,
+    marginVertical: 12,
   },
   statsRow: {
     flexDirection: 'row',
@@ -981,7 +995,7 @@ const styles = StyleSheet.create({
   statPill: {
     flex: 1,
     alignItems: 'center',
-    gap: 4,
+    gap: 2,
   },
   statIconWrap: {
     width: 38,
@@ -1058,12 +1072,12 @@ const styles = StyleSheet.create({
   },
   tabStrip: {
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 8,
     gap: 8,
   },
   tab: {
-    paddingHorizontal: 18,
-    paddingVertical: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
     borderRadius: 999,
     backgroundColor: BG,
     borderWidth: 1,
@@ -1265,6 +1279,38 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#92400E',
     letterSpacing: 0.2,
+  },
+
+  // ── Uzhavar Santhai experiment disclaimer ────────────────────────────────
+  uzhavarDisclaimer: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 4,
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 6,
+  },
+  uzhavarDisclaimerTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#14532D',
+    marginBottom: 2,
+  },
+  uzhavarDisclaimerBody: {
+    fontSize: 13,
+    color: '#166534',
+    fontWeight: '500',
+    lineHeight: 19,
+  },
+  uzhavarDisclaimerMuted: {
+    fontSize: 12,
+    color: '#4B7C5E',
+    fontStyle: 'italic',
+    fontWeight: '400',
   },
 
   // ── Store-closed banner (above inventory list) ────────────────────────────

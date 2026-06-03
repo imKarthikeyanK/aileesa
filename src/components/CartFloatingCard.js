@@ -86,7 +86,7 @@ export default function CartFloatingCard({ storeId, onPress, bottomInset = 0 }) 
 
   if (itemCount === 0) return null;
 
-  const itemLabel = itemCount === 1 ? '1 item' : `${itemCount} items`;
+  // const itemLabel = itemCount === 1 ? '1 item' : `${itemCount} items`;
 
   return (
     <Animated.View
@@ -110,7 +110,7 @@ export default function CartFloatingCard({ storeId, onPress, bottomInset = 0 }) 
           <View style={styles.countPill}>
             <Text style={styles.countText}>{itemCount}</Text>
           </View>
-          <Text style={styles.itemsLabel}>{itemLabel} in cart</Text>
+          <Text style={styles.itemsLabel}>items in cart</Text>
         </View>
 
         {/* Right — total + arrow */}
@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   countPill: {
-    backgroundColor: AMBER,
+    backgroundColor: WHITE,
     borderRadius: 8,
     minWidth: 28,
     height: 28,
