@@ -165,6 +165,11 @@ export function AuthProvider({ children }) {
         if (resolvedUser) {
           setUser(resolvedUser);
           await TokenStorage.set(KEYS.USER, JSON.stringify(resolvedUser));
+          // Re-identify returning users so PostHog links events to the profile
+          Analytics.identify(resolvedUser.id, {
+            name: resolvedUser.name,
+            phone: resolvedUser.phone,
+          });
         }
 
         scheduleRefresh(expiresInSec);

@@ -1,9 +1,14 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ComingSoon from '../components/ComingSoon';
+import { Analytics } from '../api/analytics';
 import { theme } from '../theme/theme';
 
 export default function ExploreScreen() {
+  useEffect(() => {
+    Analytics.screen('explore');
+  }, []);
+
   return (
     <SafeAreaView
       style={{ flex: 1, backgroundColor: theme.colors.background }}

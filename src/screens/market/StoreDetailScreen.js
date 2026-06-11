@@ -332,6 +332,10 @@ export default function StoreDetailScreen({ route, navigation }) {
   useEffect(() => {
     if (!trackedRef.current) {
       trackedRef.current = true;
+      Analytics.screen('store_detail', {
+        store_id:   routeStore.id,
+        store_name: routeStore.name ?? '',
+      });
       Analytics.track('store_detail_viewed', {
         store_id:   routeStore.id,
         store_name: routeStore.name ?? '',
@@ -782,18 +786,8 @@ export default function StoreDetailScreen({ route, navigation }) {
       {!isStoreClosed && (
         <CartFloatingCard
           storeId={routeStore.id}
-          onPress={() => {
-            const storeCartTotal = items
-              .filter(i => i.storeId === routeStore.id)
-              .reduce((sum, i) => sum + (i.price * i.quantity), 0);
-            Analytics.track('view_cart_cta_clicked', {
-              source: 'product_list_page',
-              store_id: routeStore.id,
-              item_count: storeCartCount,
-              grand_total: storeCartTotal,
-            });
-            navigation.navigate('Cart');
-          }}
+          source="product_list_page"
+          onPress={() => navigation.navigate('Cart')}
           bottomInset={insets.bottom}
         />
       )}

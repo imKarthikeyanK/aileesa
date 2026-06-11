@@ -14,6 +14,7 @@
  *   identify(userId, traits)   → void   Associate subsequent events with a user
  *   reset()                    → void   Clear identity (on logout)
  *   screen(name, properties)   → void   Record a screen view (optional for web analytics)
+ *   flush()                    → void   Force-send queued events (optional, safe to omit)
  *
  * EVENT CATALOGUE
  * ───────────────
@@ -24,20 +25,25 @@
  *   otp_failed             { error_code, channel }
  *   logout
  *
+ * Navigation
+ *   screen_viewed          { screen_name }  — fired via Analytics.screen()
+ *
  * Discovery
  *   store_listing_viewed   { store_count }
  *   store_card_tapped      { store_id, store_name, list_position, is_open }
  *   store_detail_viewed    { store_id, store_name, is_open }
  *   category_tab_tapped    { store_id, category_name, tab_index }
+ *   view_cart_cta_clicked  { source, store_id, item_count, total_amount }
  *
  * Cart
  *   item_added             { item_id, item_name, store_id, price, quantity, is_multi_add }
  *   item_removed           { item_id, store_id, quantity }
- *   cart_conflict_shown    { existing_store_id, new_store_id }
- *   cart_conflict_resolved { action }   // 'replaced' | 'cancelled'
+ *   cart_conflict_shown    { existing_store_id, existing_store_name, new_store_id, new_store_name }
+ *   cart_conflict_resolved { action, existing_store_id, new_store_id }   // action: 'replaced' | 'cancelled'
+ *   cart_viewed            { store_id, item_count, subtotal, grand_total, is_free_delivery }
  *
  * Checkout (critical path)
- *   cart_viewed            { store_id, item_count, subtotal, grand_total, is_free_delivery }
+ *   place_order_cta_clicked { store_id, item_count, sub_total, delivery_fee, platform_fee, grand_total, payment_method, auth_state, has_address }
  *   checkout_initiated     { store_id, item_count, grand_total, auth_state }
  *   address_picker_opened  { source }
  *   order_placed           { order_id, display_id, store_id, item_count, grand_total, payment_method }
@@ -146,6 +152,8 @@ export const Analytics = {
     try {
       _globalParams.user_id = null;
       ACTIVE_PROVIDER.reset();
+      // Ensure the reset event reaches the server immediately.
+      ACTIVE_PROVIDER.flush?.();
     } catch {
       // Analytics must never crash the app.
     }
@@ -159,6 +167,18 @@ export const Analytics = {
   screen(name, properties) {
     try {
       ACTIVE_PROVIDER.screen(name, withGlobalParams(properties));
+    } catch {
+      // Analytics must never crash the app.
+    }
+  },
+
+  /**
+   * Force-flush any queued events. Call before app background or
+   * critical transitions to prevent data loss.
+   */
+  flush() {
+    try {
+      ACTIVE_PROVIDER.flush?.();
     } catch {
       // Analytics must never crash the app.
     }

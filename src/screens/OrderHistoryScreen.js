@@ -105,6 +105,7 @@ export default function OrderHistoryScreen({ navigation }) {
       const data = res?.data ?? res;
       setOrders(data);
       if (!silent) {
+        Analytics.screen('order_history', { order_count: Array.isArray(data) ? data.length : 0 });
         Analytics.track('order_history_viewed', { order_count: Array.isArray(data) ? data.length : 0 });
       }
     } catch (e) {

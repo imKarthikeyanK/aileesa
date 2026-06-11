@@ -81,6 +81,7 @@ export default function OrderSuccessScreen({ route, navigation }) {
   const { bookingId, displayId } = route.params ?? {};
 
   useEffect(() => {
+    Analytics.screen('order_success', { order_id: bookingId, display_id: displayId });
     Analytics.track('order_success_viewed', { order_id: bookingId, display_id: displayId });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 

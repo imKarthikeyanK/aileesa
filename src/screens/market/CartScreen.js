@@ -456,7 +456,11 @@ export default function CartScreen({ navigation }) {
           setShowGpsFetchMessage(false);
           setIsCartGateLoading(false);
 
-          // Fire cart_viewed once flash data is fresh
+          // Fire screen + cart_viewed once flash data is fresh
+          Analytics.screen('cart', {
+            item_count: items.length,
+            auth_state: isAuthenticated ? 'logged_in' : 'guest',
+          });
           if (items.length > 0) {
             const _subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
             Analytics.track('cart_viewed', {

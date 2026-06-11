@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { Analytics } from '../api/analytics';
 import { useCart } from '../context/CartContext';
 
 const AMBER  = '#FBBF24';
@@ -28,8 +29,20 @@ const CARD_H = 60;
 const GRAD_START = '#6200EE';
 const GRAD_END   = '#9C4DCC';
 
-export default function CartFloatingCard({ storeId, onPress, bottomInset = 0 }) {
+export default function CartFloatingCard({ storeId, onPress, bottomInset = 0, source }) {
   const { items } = useCart();
+
+  // Wrap onPress with analytics tracking (computed values below are available
+  // at call time since onPress fires after render).
+  const handlePress = () => {
+    Analytics.track('view_cart_cta_clicked', {
+      source:       source ?? (storeId ? 'product_list_page' : 'store_list_page'),
+      store_id:     storeId ?? null,
+      item_count:   itemCount,
+      total_amount: totalAmount,
+    });
+    onPress?.();
+  };
 
   // When storeId is provided (L2 — StoreDetail), show only that store's items.
   // When omitted (L1 — StoreListing), show the aggregate across all stores.
@@ -96,7 +109,7 @@ export default function CartFloatingCard({ storeId, onPress, bottomInset = 0 }) 
       ]}
     >
       <TouchableOpacity
-        onPress={onPress}
+        onPress={handlePress}
         activeOpacity={0.88}
         style={styles.touchable}
       >

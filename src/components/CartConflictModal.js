@@ -23,6 +23,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { Analytics } from '../api/analytics';
 import { useCart } from '../context/CartContext';
 
 // ─── Design tokens (matches app palette) ──────────────────────────────────────
@@ -43,8 +44,22 @@ export default function CartConflictModal() {
 
   // Existing store name derived from cart items
   const existingStoreName = items.length > 0 ? items[0].storeName : '';
+  const existingStoreId   = items.length > 0 ? items[0].storeId   : '';
   // New store name from the pending item
   const newStoreName = pendingAdd?.item?.storeName ?? '';
+  const newStoreId   = pendingAdd?.item?.storeId   ?? '';
+
+  // ── Track when the conflict modal appears ─────────────────────────────────
+  useEffect(() => {
+    if (visible) {
+      Analytics.track('cart_conflict_shown', {
+        existing_store_id:   existingStoreId,
+        existing_store_name: existingStoreName,
+        new_store_id:        newStoreId,
+        new_store_name:      newStoreName,
+      });
+    }
+  }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Sheet slide-up animation ───────────────────────────────────────────────
   const slideY = useRef(new Animated.Value(300)).current;
@@ -73,6 +88,25 @@ export default function CartConflictModal() {
     }
   }, [visible]);
 
+  // ── Wrap handlers with analytics ─────────────────────────────────────────
+  const handleReplace = () => {
+    Analytics.track('cart_conflict_resolved', {
+      action:             'replaced',
+      existing_store_id:  existingStoreId,
+      new_store_id:       newStoreId,
+    });
+    confirmReplaceCart();
+  };
+
+  const handleCancel = () => {
+    Analytics.track('cart_conflict_resolved', {
+      action:             'cancelled',
+      existing_store_id:  existingStoreId,
+      new_store_id:       newStoreId,
+    });
+    cancelPendingAdd();
+  };
+
   // Existing item count for display
   const existingItemCount = items.reduce((s, i) => s + i.quantity, 0);
 
@@ -82,10 +116,10 @@ export default function CartConflictModal() {
       transparent
       animationType="none"
       statusBarTranslucent
-      onRequestClose={cancelPendingAdd}
+      onRequestClose={handleCancel}
     >
       {/* Backdrop — tap to cancel */}
-      <TouchableWithoutFeedback onPress={cancelPendingAdd}>
+      <TouchableWithoutFeedback onPress={handleCancel}>
         <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]} />
       </TouchableWithoutFeedback>
 
@@ -136,7 +170,7 @@ export default function CartConflictModal() {
         {/* Actions */}
         <TouchableOpacity
           style={styles.replaceBtn}
-          onPress={confirmReplaceCart}
+          onPress={handleReplace}
           activeOpacity={0.85}
         >
           <Text style={styles.replaceBtnText}>Yes, replace cart</Text>
@@ -144,7 +178,7 @@ export default function CartConflictModal() {
 
         <TouchableOpacity
           style={styles.cancelBtn}
-          onPress={cancelPendingAdd}
+          onPress={handleCancel}
           activeOpacity={0.75}
         >
           <Text style={styles.cancelBtnText}>Keep current cart</Text>

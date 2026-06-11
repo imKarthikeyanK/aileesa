@@ -7,6 +7,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
+import { Analytics } from '../api/analytics';
 import AuthSheet from '../components/auth/AuthSheet';
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
@@ -163,6 +164,15 @@ export default function YouScreen({ navigation }) {
   const [authSheetVisible, setAuthSheetVisible] = useState(false);
   const [editNameVisible,  setEditNameVisible]  = useState(false);
   const [showComing,       setShowComing]       = useState(false);
+
+  // ── Screen view tracking ────────────────────────────────────────────────
+  const trackedRef = useRef(false);
+  useEffect(() => {
+    if (!trackedRef.current) {
+      trackedRef.current = true;
+      Analytics.screen('you', { is_authenticated: isAuthenticated });
+    }
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (isAuthenticated) fetchProfile?.();
